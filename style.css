@@ -1,0 +1,499 @@
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #f3f4f6;
+    color: #111827;
+}
+
+.app-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.sidebar {
+    width: 320px;
+    background: #0f172a;
+    color: white;
+    display: flex;
+    flex-direction: column;
+    padding: 24px 18px;
+}
+
+.sidebar-top {
+    margin-bottom: 24px;
+}
+
+.brand-block {
+    margin-bottom: 18px;
+}
+
+.brand-name {
+    margin: 0;
+    font-size: 32px;
+    line-height: 1;
+    font-weight: 800;
+}
+
+.brand-tag {
+    margin: 8px 0 0;
+    color: #cbd5e1;
+    font-size: 14px;
+}
+
+.new-chat-btn {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid #334155;
+    border-radius: 12px;
+    background: white;
+    color: #111827;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.new-chat-btn:hover {
+    opacity: 0.95;
+}
+
+.history-section {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.history-header {
+    font-size: 14px;
+    color: #cbd5e1;
+    margin-bottom: 10px;
+}
+
+.chat-history {
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.history-item {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 14px;
+    padding: 12px;
+    cursor: pointer;
+}
+
+.history-item:hover {
+    background: #273449;
+}
+
+.history-item.active {
+    border-color: white;
+}
+
+.history-title {
+    font-size: 14px;
+    font-weight: 700;
+    margin-bottom: 6px;
+    color: white;
+}
+
+.history-preview {
+    font-size: 12px;
+    color: #cbd5e1;
+    line-height: 1.4;
+}
+
+.history-actions {
+    margin-top: 10px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.delete-chat-btn {
+    border: none;
+    background: transparent;
+    color: #fca5a5;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0;
+}
+
+.main-panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 24px;
+}
+
+.topbar {
+    margin-bottom: 18px;
+}
+
+.header {
+    background: white;
+    border-radius: 22px;
+    padding: 24px 28px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+}
+
+.main-title {
+    margin: 0;
+    font-size: 42px;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.sub-title {
+    margin: 10px 0 0;
+    font-size: 18px;
+    color: #6b7280;
+    font-weight: 600;
+}
+
+.chat-box {
+    flex: 1;
+    background: white;
+    border-radius: 22px;
+    padding: 24px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 420px;
+}
+
+.welcome-card {
+    margin: auto;
+    max-width: 520px;
+    text-align: center;
+    color: #475569;
+}
+
+.welcome-icon {
+    font-size: 42px;
+    margin-bottom: 12px;
+}
+
+.message-row {
+    display: flex;
+    width: 100%;
+}
+
+.message-row.user {
+    justify-content: flex-end;
+}
+
+.message-row.bot {
+    justify-content: flex-start;
+}
+
+.message-bubble {
+    max-width: 72%;
+    padding: 14px 16px;
+    border-radius: 18px;
+    line-height: 1.5;
+    font-size: 15px;
+    white-space: pre-wrap;
+}
+
+.message-row.user .message-bubble {
+    background: #111827;
+    color: white;
+    border-bottom-right-radius: 6px;
+}
+
+.message-row.bot .message-bubble {
+    background: #f1f5f9;
+    color: #111827;
+    border-bottom-left-radius: 6px;
+}
+
+.source-block {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #64748b;
+}
+
+.status-bar {
+    margin-top: 14px;
+    background: white;
+    border-radius: 18px;
+    padding: 14px 18px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.06);
+}
+
+.hidden {
+    display: none;
+}
+
+.thinking-wrap {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.thinking-text {
+    color: #334155;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.brain-loader {
+    position: relative;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.brain-core {
+    position: absolute;
+    font-size: 20px;
+    z-index: 2;
+    animation: pulseBrain 1.2s infinite ease-in-out;
+}
+
+.brain-ring {
+    position: absolute;
+    border: 2px solid #94a3b8;
+    border-radius: 50%;
+    animation: spinRing 1.5s linear infinite;
+}
+
+.ring-1 {
+    width: 34px;
+    height: 34px;
+}
+
+.ring-2 {
+    width: 42px;
+    height: 42px;
+    animation-duration: 2.2s;
+    border-color: #cbd5e1;
+}
+
+@keyframes spinRing {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@keyframes pulseBrain {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.12); }
+}
+
+.input-panel {
+    margin-top: 18px;
+    background: white;
+    border-radius: 22px;
+    padding: 16px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    display: flex;
+    gap: 14px;
+    align-items: center;
+}
+
+#question {
+    flex: 1;
+    border: 1px solid #cbd5e1;
+    border-radius: 16px;
+    padding: 16px 18px;
+    font-size: 16px;
+    outline: none;
+}
+
+#question:focus {
+    border-color: #111827;
+}
+
+.ask-btn {
+    min-width: 110px;
+    border: none;
+    background: #111827;
+    color: white;
+    border-radius: 16px;
+    padding: 16px 20px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.ask-btn.stop-mode {
+    background: #991b1b;
+}
+
+.empty-history {
+    color: #94a3b8;
+    font-size: 13px;
+}
+
+@media (max-width: 980px) {
+    .app-shell {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+    }
+
+    .message-bubble {
+        max-width: 90%;
+    }
+}
+
+.welcome-text {
+    max-width: 760px;
+    margin: 0 auto 18px auto;
+    font-size: 16px;
+    line-height: 1.7;
+    color: #475569;
+}
+
+.prompt-chip-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin-top: 18px;
+}
+
+.prompt-chip {
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    color: #0f172a;
+    padding: 10px 14px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.prompt-chip:hover {
+    background: #0f172a;
+    color: white;
+    border-color: #0f172a;
+}
+
+
+
+
+
+
+.header {
+    position: relative;
+}
+
+.flag-wrap {
+    position: absolute;
+    top: 16px;
+    left: 72%;
+    margin-left: -36px; /* half of 72px width */
+    width: 72px;
+    height: 44px;
+    overflow: hidden;
+    border-radius: 4px;
+    transform-origin: left center;
+    animation: flagSway 3.2s ease-in-out infinite;
+}
+
+.flag-logo {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    transform-origin: left center;
+    animation: flagCloth 3.2s ease-in-out infinite;
+}
+
+.flag-shimmer {
+    position: absolute;
+    top: 0;
+    left: -40%;
+    width: 40%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(255,255,255,0) 0%,
+        rgba(255,255,255,0.18) 45%,
+        rgba(255,255,255,0.35) 50%,
+        rgba(255,255,255,0.18) 55%,
+        rgba(255,255,255,0) 100%
+    );
+    transform: skewX(-18deg);
+    animation: flagSweep 2.8s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes flagSway {
+    0% {
+        transform: perspective(600px) rotateY(0deg) rotateZ(0deg) translateY(0);
+    }
+    25% {
+        transform: perspective(600px) rotateY(-10deg) rotateZ(-1deg) translateY(-1px);
+    }
+    50% {
+        transform: perspective(600px) rotateY(2deg) rotateZ(0.5deg) translateY(0);
+    }
+    75% {
+        transform: perspective(600px) rotateY(-6deg) rotateZ(-0.6deg) translateY(-1px);
+    }
+    100% {
+        transform: perspective(600px) rotateY(0deg) rotateZ(0deg) translateY(0);
+    }
+}
+
+@keyframes flagCloth {
+    0% {
+        transform: scaleX(1) skewY(0deg);
+        filter: brightness(1);
+    }
+    20% {
+        transform: scaleX(1.015) skewY(-1deg);
+        filter: brightness(1.02);
+    }
+    40% {
+        transform: scaleX(0.99) skewY(0.7deg);
+        filter: brightness(0.98);
+    }
+    60% {
+        transform: scaleX(1.01) skewY(-0.8deg);
+        filter: brightness(1.01);
+    }
+    80% {
+        transform: scaleX(0.995) skewY(0.4deg);
+        filter: brightness(0.99);
+    }
+    100% {
+        transform: scaleX(1) skewY(0deg);
+        filter: brightness(1);
+    }
+}
+
+@keyframes flagSweep {
+    0% {
+        left: -45%;
+        opacity: 0;
+    }
+    10% {
+        opacity: 0.55;
+    }
+    50% {
+        opacity: 0.85;
+    }
+    90% {
+        opacity: 0.35;
+    }
+    100% {
+        left: 115%;
+        opacity: 0;
+    }
+}

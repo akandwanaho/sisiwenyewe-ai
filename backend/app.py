@@ -1,0 +1,390 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+from pathlib import Path
+import json
+import re
+import faiss
+import numpy as np
+import requests
+
+app = Flask(__name__)
+CORS(app)
+
+BASE_DIR = Path(__file__).parent
+INDEX_DIR = BASE_DIR / "rag_store"
+
+INDEX_PATH = INDEX_DIR / "cbrn.index"
+DOCS_PATH = INDEX_DIR / "documents.json"
+
+OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+OLLAMA_MODEL = "qwen2.5:3b"
+
+TOP_K = 2
+
+index = None
+documents = None
+embedder = None
+
+
+def is_greeting(text: str) -> bool:
+    q = text.strip().lower()
+    return q in {"hi", "hello", "hey", "good morning", "good afternoon", "good evening"}
+
+
+def fallback_response():
+    return {
+        "answer": "Sorry, I can’t answer that at the moment. Please check again in the next few days as my training and knowledge base continue to improve.",
+        "sources": []
+    }
+
+
+def clean_answer(text: str) -> str:
+    text = text.strip()
+    text = re.sub(r"\s+", " ", text)
+    return text
+
+
+def finish_cleanly(text: str) -> str:
+    text = clean_answer(text)
+    last_punct = max(text.rfind("."), text.rfind("!"), text.rfind("?"))
+    if last_punct != -1:
+        return text[:last_punct + 1]
+    return text
+
+
+def is_vague_question(question: str) -> bool:
+    q = question.strip().lower()
+    vague_patterns = {
+        "stats", "statistics", "tell me more", "more", "what about it",
+        "what about that", "is it common", "what are the stats",
+        "give me stats", "details", "more info", "more information"
+    }
+
+    if q in vague_patterns:
+        return True
+
+    short_followups = {
+        "is it common in uganda?",
+        "what are the stats?",
+        "give me some stats",
+        "what about treatment?",
+        "what about symptoms?",
+        "what about uganda?"
+    }
+
+    if q in short_followups:
+        return True
+
+    return False
+
+
+def load_rag_assets():
+    global index, documents, embedder
+
+    from sentence_transformers import SentenceTransformer
+
+    if not INDEX_PATH.exists():
+        raise FileNotFoundError(f"FAISS index not found: {INDEX_PATH}")
+
+    if not DOCS_PATH.exists():
+        raise FileNotFoundError(f"Documents file not found: {DOCS_PATH}")
+
+    print("Loading embedding model...")
+    embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+
+    print("Loading FAISS index...")
+    index = faiss.read_index(str(INDEX_PATH))
+
+    print("Loading documents metadata...")
+    with open(DOCS_PATH, "r", encoding="utf-8") as f:
+        documents = json.load(f)
+
+    print(f"Loaded {len(documents)} chunks.")
+
+
+def search_documents(query: str, top_k=TOP_K):
+    if not query.strip():
+        return []
+
+    query_embedding = embedder.encode(
+        [query],
+        convert_to_numpy=True,
+        normalize_embeddings=True
+    ).astype(np.float32)
+
+    scores, indices = index.search(query_embedding, top_k)
+
+    results = []
+    for score, idx in zip(scores[0], indices[0]):
+        if idx == -1:
+            continue
+
+        doc = documents[idx]
+        results.append({
+            "score": float(score),
+            "file": doc["file"],
+            "text": doc["text"],
+            "chunk_index": doc["chunk_index"]
+        })
+
+    return results
+
+
+def rewrite_with_history(question: str, history: list):
+    if not history:
+        return question
+
+    history_text = "\n".join(
+        [f"{m.get('role', 'user')}: {m.get('text', '')}" for m in history[-6:]]
+    )
+
+    prompt = f"""
+You are helping convert a follow-up user question into a fully clear standalone question.
+
+Rules:
+- Use the recent conversation history to infer what the user is referring to
+- Keep the rewritten question short and precise
+- If the latest user question is already clear, return it unchanged
+- Return only the rewritten standalone question
+- Do not explain anything
+
+Conversation history:
+{history_text}
+
+Latest user question:
+{question}
+
+Standalone question:
+""".strip()
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "num_predict": 60
+                }
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        rewritten = clean_answer(data.get("response", "").strip())
+        print("Rewritten question:", rewritten if rewritten else question)
+        return rewritten if rewritten else question
+    except Exception as e:
+        print(f"Rewrite error: {e}")
+        return question
+
+
+def clarification_with_ollama(question: str, history: list):
+    history_text = "\n".join(
+        [f"{m.get('role', 'user')}: {m.get('text', '')}" for m in history[-6:]]
+    ) if history else ""
+
+    prompt = f"""
+You are Sisiwenyewe, a CBRN intelligence assistant.
+
+The user's latest question is too vague or incomplete.
+Ask one short clarifying question that helps narrow the answer.
+Be direct and professional.
+Do not answer the original question yet.
+
+Conversation history:
+{history_text}
+
+Latest user question:
+{question}
+
+Clarifying question:
+""".strip()
+
+    try:
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 50
+                }
+            },
+            timeout=30
+        )
+        response.raise_for_status()
+        data = response.json()
+        answer = finish_cleanly(data.get("response", "").strip())
+        return answer if answer else "Could you clarify what specific information you need?"
+    except Exception as e:
+        print(f"Clarification error: {e}")
+        return "Could you clarify what specific information you need?"
+
+
+def answer_with_ollama(question: str, contexts: list, history: list):
+    context_text = "\n\n".join([c["text"] for c in contexts])
+
+    history_text = "\n".join(
+        [f"{m.get('role', 'user')}: {m.get('text', '')}" for m in history[-6:]]
+    ) if history else ""
+
+    prompt = f"""
+You are Sisiwenyewe, a CBRN intelligence assistant for Uganda.
+CBRN refers to Chemical, Biological, Radiological, and Nuclear threats.
+
+Your responses must:
+- Be clear, professional, and concise
+- Be useful for policymakers, responders, and institutions in Uganda
+- Adapt global knowledge to the Ugandan context where there is clear relevance
+- Stay tightly focused on the user's actual question
+
+Critical Behaviour Rules:
+- Always answer the user's question directly
+- Use the recent conversation history to understand what "it", "that", or similar follow-up terms refer to
+- Do not introduce unrelated threats or topics unless explicitly asked
+
+SAFETY AND ACCURACY RULES (VERY IMPORTANT):
+- If you are NOT confident about a term, substance, or concept, DO NOT guess
+- Do NOT infer meaning from similar-sounding words
+- Do NOT substitute one chemical, agent, or substance for another
+- If uncertain, say:
+  "I am not fully certain about this term. Please confirm or provide more context."
+- Only provide an answer when you are confident it is correct
+
+Guidance:
+- Use the provided context as your primary source of truth
+- If the context is incomplete, you may supplement with general CBRN knowledge ONLY if confident
+- Do not mention documents, sources, chunks, or retrieval
+- Do not repeat raw context
+- Keep the answer to one short paragraph of 3 to 4 complete sentences
+- Ensure the response ends with a complete, well-formed sentence
+
+Recent conversation:
+{history_text}
+
+Question:
+{question}
+
+Context:
+{context_text}
+
+Answer:
+""".strip()
+
+    try:
+        print("Calling Ollama with retrieved context...")
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 140
+                }
+            },
+            timeout=60
+        )
+        response.raise_for_status()
+        data = response.json()
+        answer = finish_cleanly(data.get("response", "").strip())
+        print("Ollama returned a response.")
+        print("Ollama answer preview:", answer[:300] if answer else "EMPTY")
+        return answer if answer else ""
+    except Exception as e:
+        print(f"Ollama error: {e}")
+        return ""
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Sisiwenyewe backend is running."
+
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json(silent=True) or {}
+    question = (data.get("question") or "").strip()
+    history = data.get("history", [])
+
+    print(f"Question received: {question}")
+
+    if not question:
+        return jsonify({"answer": "Please enter a question.", "sources": []}), 400
+
+    if is_greeting(question):
+        return jsonify({
+            "answer": "Hi. How can I assist today?",
+            "sources": []
+        })
+
+    # Rewrite follow-up questions using recent history
+    effective_question = rewrite_with_history(question, history)
+
+    # If the latest user query is vague, ask for clarification first
+    if is_vague_question(question):
+        clarification = clarification_with_ollama(question, history)
+        print("Clarification response:", clarification)
+        return jsonify({
+            "answer": clarification,
+            "sources": []
+        })
+
+    results = search_documents(effective_question, top_k=TOP_K)
+
+    if not results:
+        print("No retrieval results found — using LLM general knowledge.")
+
+        answer = answer_with_ollama(effective_question, [], history)
+        print("No-results Ollama answer:", answer[:300] if answer else "EMPTY")
+
+        if not answer:
+            return jsonify(fallback_response())
+
+        return jsonify({
+            "answer": answer,
+            "sources": []
+        })
+
+    top_score = results[0]["score"]
+    print(f"Top score: {top_score:.4f}")
+
+
+    if top_score < 0.20:
+        print("Low RAG score — using LLM general knowledge.")
+
+        answer = answer_with_ollama(effective_question, [], history)
+        print("General knowledge Ollama answer:", answer[:300] if answer else "EMPTY")
+
+        if not answer:
+            return jsonify(fallback_response())
+
+        return jsonify({
+            "answer": answer,
+            "sources": []
+        })   
+
+    answer = answer_with_ollama(effective_question, results, history)
+    print("Final Ollama answer:", answer[:300] if answer else "EMPTY")
+
+    if not answer:
+        print("Ollama did not return a usable answer. Returning grounded short fallback.")
+        top_text = results[0]["text"] if results else ""
+        answer = clean_answer(top_text[:350]) if top_text else fallback_response()["answer"]
+
+    return jsonify({
+        "answer": answer,
+        "sources": [r["file"] for r in results]
+    })
+
+
+if __name__ == "__main__":
+    print("Starting Flask RAG server...")
+    load_rag_assets()
+    app.run(debug=True, port=5001)

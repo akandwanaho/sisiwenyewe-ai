@@ -210,7 +210,7 @@ async function sendMessage() {
     startThinking();
 
     try {
-        const response = await fetch("https://benchmark-lived-over-minerals.trycloudflare.com/chat", {
+        const response = await fetch("https://hearts-openings-tobacco-descriptions.trycloudflare.com/chat", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"

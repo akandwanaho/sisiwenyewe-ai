@@ -17,7 +17,7 @@ INDEX_PATH = INDEX_DIR / "cbrn.index"
 DOCS_PATH = INDEX_DIR / "documents.json"
 
 OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:3b"
+OLLAMA_MODEL = "qwen2.5:7b"
 
 TOP_K = 2
 
@@ -240,7 +240,7 @@ CBRN refers to Chemical, Biological, Radiological, and Nuclear threats.
 Your responses must:
 - Be clear, professional, and concise
 - Be useful for policymakers, responders, and institutions in Uganda
-- Adapt global knowledge to the Ugandan context where there is clear relevance
+- Adapt global knowledge to the Ugandan and East African context where there is clear relevance, but do not assume specific local facts unless supported by the context or well-established general knowledge
 - Stay tightly focused on the user's actual question
 
 Critical Behaviour Rules:
@@ -258,7 +258,7 @@ SAFETY AND ACCURACY RULES (VERY IMPORTANT):
 
 Guidance:
 - Use the provided context as your primary source of truth
-- If the context is incomplete, you may supplement with general CBRN knowledge ONLY if confident
+- If the context is incomplete, you may supplement with reliable general CBRN knowledge if confident, while making it clear when local Ugandan evidence is limited
 - Do not mention documents, sources, chunks, or retrieval
 - Do not repeat raw context
 - Keep the answer to one short paragraph of 3 to 4 complete sentences

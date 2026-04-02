@@ -140,6 +140,10 @@ body {
     border-radius: 22px;
     padding: 24px 28px;
     box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .main-title {
@@ -154,6 +158,7 @@ body {
     font-size: 18px;
     color: #6b7280;
     font-weight: 600;
+    width: 100%;
 }
 
 .chat-box {
@@ -335,20 +340,6 @@ body {
     font-size: 13px;
 }
 
-@media (max-width: 980px) {
-    .app-shell {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-    }
-
-    .message-bubble {
-        max-width: 90%;
-    }
-}
-
 .welcome-text {
     max-width: 760px;
     margin: 0 auto 18px auto;
@@ -383,26 +374,14 @@ body {
     border-color: #0f172a;
 }
 
-
-
-
-
-
-.header {
-    position: relative;
-}
-
 .flag-wrap {
-    position: absolute;
-    top: 16px;
-    left: 72%;
-    margin-left: -36px; /* half of 72px width */
-    width: 72px;
-    height: 44px;
+    position: static;
+    width: 40px;
+    height: 26px;
+    margin-left: 8px;
     overflow: hidden;
     border-radius: 4px;
-    transform-origin: left center;
-    animation: flagSway 3.2s ease-in-out infinite;
+    flex-shrink: 0;
 }
 
 .flag-logo {
@@ -411,89 +390,81 @@ body {
     display: block;
     object-fit: cover;
     transform-origin: left center;
-    animation: flagCloth 3.2s ease-in-out infinite;
+    animation: flagWaveMobileSafe 3s ease-in-out infinite;
 }
 
 .flag-shimmer {
-    position: absolute;
-    top: 0;
-    left: -40%;
-    width: 40%;
-    height: 100%;
-    background: linear-gradient(
-        90deg,
-        rgba(255,255,255,0) 0%,
-        rgba(255,255,255,0.18) 45%,
-        rgba(255,255,255,0.35) 50%,
-        rgba(255,255,255,0.18) 55%,
-        rgba(255,255,255,0) 100%
-    );
-    transform: skewX(-18deg);
-    animation: flagSweep 2.8s linear infinite;
-    pointer-events: none;
+    display: none;
 }
 
-@keyframes flagSway {
+@keyframes flagWaveMobileSafe {
     0% {
-        transform: perspective(600px) rotateY(0deg) rotateZ(0deg) translateY(0);
+        transform: perspective(400px) rotateY(0deg) scaleX(1);
     }
     25% {
-        transform: perspective(600px) rotateY(-10deg) rotateZ(-1deg) translateY(-1px);
+        transform: perspective(400px) rotateY(-10deg) scaleX(1.03);
     }
     50% {
-        transform: perspective(600px) rotateY(2deg) rotateZ(0.5deg) translateY(0);
+        transform: perspective(400px) rotateY(4deg) scaleX(0.98);
     }
     75% {
-        transform: perspective(600px) rotateY(-6deg) rotateZ(-0.6deg) translateY(-1px);
+        transform: perspective(400px) rotateY(-6deg) scaleX(1.01);
     }
     100% {
-        transform: perspective(600px) rotateY(0deg) rotateZ(0deg) translateY(0);
+        transform: perspective(400px) rotateY(0deg) scaleX(1);
     }
 }
 
-@keyframes flagCloth {
-    0% {
-        transform: scaleX(1) skewY(0deg);
-        filter: brightness(1);
+@media (max-width: 980px) {
+    .app-shell {
+        flex-direction: column;
     }
-    20% {
-        transform: scaleX(1.015) skewY(-1deg);
-        filter: brightness(1.02);
+
+    .sidebar {
+        width: 100%;
     }
-    40% {
-        transform: scaleX(0.99) skewY(0.7deg);
-        filter: brightness(0.98);
-    }
-    60% {
-        transform: scaleX(1.01) skewY(-0.8deg);
-        filter: brightness(1.01);
-    }
-    80% {
-        transform: scaleX(0.995) skewY(0.4deg);
-        filter: brightness(0.99);
-    }
-    100% {
-        transform: scaleX(1) skewY(0deg);
-        filter: brightness(1);
+
+    .message-bubble {
+        max-width: 90%;
     }
 }
 
-@keyframes flagSweep {
-    0% {
-        left: -45%;
-        opacity: 0;
+@media (max-width: 768px) {
+    .main-panel {
+        padding: 16px;
     }
-    10% {
-        opacity: 0.55;
+
+    .header {
+        padding: 18px 20px;
+        gap: 8px;
     }
-    50% {
-        opacity: 0.85;
+
+    .main-title {
+        font-size: 30px;
     }
-    90% {
-        opacity: 0.35;
+
+    .sub-title {
+        font-size: 15px;
+        line-height: 1.4;
     }
-    100% {
-        left: 115%;
-        opacity: 0;
+
+    .flag-wrap {
+        width: 34px;
+        height: 22px;
+        margin-left: 6px;
+    }
+
+    .chat-box {
+        padding: 18px;
+        min-height: 360px;
+    }
+
+    .input-panel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .ask-btn {
+        width: 100%;
     }
 }

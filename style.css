@@ -140,13 +140,19 @@ body {
     border-radius: 22px;
     padding: 24px 28px;
     box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
-    display: flex;
+
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+        "title flag"
+        "subtitle subtitle";
     align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+    column-gap: 10px;
+    row-gap: 8px;
 }
 
 .main-title {
+    grid-area: title;
     margin: 0;
     font-size: 42px;
     font-weight: 800;
@@ -154,11 +160,11 @@ body {
 }
 
 .sub-title {
-    margin: 10px 0 0;
+    grid-area: subtitle;
+    margin: 0;
     font-size: 18px;
     color: #6b7280;
     font-weight: 600;
-    width: 100%;
 }
 
 .chat-box {
@@ -375,13 +381,13 @@ body {
 }
 
 .flag-wrap {
-    position: static;
+    grid-area: flag;
     width: 40px;
     height: 26px;
-    margin-left: 8px;
     overflow: hidden;
     border-radius: 4px;
-    flex-shrink: 0;
+    justify-self: start;
+    align-self: center;
 }
 
 .flag-logo {
@@ -436,7 +442,8 @@ body {
 
     .header {
         padding: 18px 20px;
-        gap: 8px;
+        column-gap: 8px;
+        row-gap: 6px;
     }
 
     .main-title {
@@ -451,7 +458,6 @@ body {
     .flag-wrap {
         width: 34px;
         height: 22px;
-        margin-left: 6px;
     }
 
     .chat-box {

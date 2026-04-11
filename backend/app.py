@@ -386,6 +386,10 @@ def is_vague_question(question: str) -> bool:
 def load_rag_assets():
     global index, documents, embedder
 
+    # 👇 prevent re-loading (VERY important for gunicorn)
+    if embedder is not None and index is not None and documents is not None:
+        return
+
     from sentence_transformers import SentenceTransformer
 
     if not INDEX_PATH.exists():
@@ -407,6 +411,11 @@ def load_rag_assets():
     print(f"Loaded {len(documents)} chunks.")
 
 
+if embedder is None or index is None or documents is None:
+    print("RAG assets not loaded — loading now...")
+    load_rag_assets()
+
+    
 def search_documents(query: str, top_k=TOP_K):
     if not query.strip():
         return []
@@ -694,7 +703,11 @@ def chat():
 })
 
 
+
+
+
 if __name__ == "__main__":
-    print("Starting Flask RAG server...")
-    load_rag_assets()
-    app.run(debug=True, port=5001)
+   print("Loading RAG assets for server startup...")
+load_rag_assets()
+print("RAG assets loaded successfully.")
+app.run(debug=True, port=5001)

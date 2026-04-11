@@ -31,6 +31,12 @@ function createNewChat() {
     saveChats();
     renderHistory();
     renderCurrentChat();
+
+    setTimeout(() => {
+        questionInput.value = "";
+        questionInput.focus();
+        questionInput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
 }
 
 function getCurrentChat() {
@@ -81,13 +87,12 @@ function renderHistory() {
 
 function renderCurrentChat() {
     const currentChat = getCurrentChat();
-    chatBox.innerHTML = "";
 
     if (!currentChat || currentChat.messages.length === 0) {
         chatBox.innerHTML = `
             <div class="welcome-card">
                 <div class="welcome-icon">🧠</div>
-                 <p class="welcome-text">
+                <p class="welcome-text">
                     Ask anything from our CBRN knowledge base.
                 </p>
                 <div class="prompt-chip-wrap">
@@ -98,14 +103,15 @@ function renderCurrentChat() {
                 </div>
             </div>
         `;
-        return;
+    } else {
+        chatBox.innerHTML = "";
+
+        currentChat.messages.forEach(message => {
+            addMessageToUI(message.role, message.text, false);
+        });
+
+        chatBox.scrollTop = chatBox.scrollHeight;
     }
-
-    currentChat.messages.forEach(message => {
-        addMessageToUI(message.role, message.text, false);
-    });
-
-    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function addMessageToUI(role, text, animate = false) {
@@ -128,7 +134,7 @@ function addMessageToUI(role, text, animate = false) {
     return bubble;
 }
 
-function typeText(element, text, speed = 12) {
+function typeText(element, text, speed = 12, callback) {
     if (typingTimer) {
         clearInterval(typingTimer);
         typingTimer = null;
@@ -140,11 +146,16 @@ function typeText(element, text, speed = 12) {
     typingTimer = setInterval(() => {
         element.textContent += text.charAt(i);
         i += 1;
+
+        // keep auto-scroll
         chatBox.scrollTop = chatBox.scrollHeight;
 
         if (i >= text.length) {
             clearInterval(typingTimer);
             typingTimer = null;
+
+            // 👇 THIS is the key addition
+            if (callback) callback();
         }
     }, speed);
 }
@@ -204,10 +215,16 @@ async function sendMessage() {
     });
 
     saveChats();
-    renderHistory();
-    renderCurrentChat();
-    questionInput.value = "";
-    startThinking();
+
+const welcome = document.querySelector(".welcome-card");
+if (welcome) {
+    welcome.remove();
+}
+
+renderHistory();
+renderCurrentChat();
+questionInput.value = "";
+startThinking();
 
     try {
         const response = await fetch("https://chatbot.sisiwenyewe.com/chat", {
@@ -233,7 +250,34 @@ async function sendMessage() {
         stopThinking();
 
         const bubble = addMessageToUI("bot", "", false);
-        typeText(bubble, botText, 12);
+
+typeText(bubble, botText, 12, () => {
+    if (data.resources && data.resources.length > 0) {
+        const resourceDiv = document.createElement("div");
+        resourceDiv.className = "resource-links";
+
+        const title = document.createElement("div");
+        title.innerText = "For further reading, consult the following authoritative sources:";
+        title.className = "resource-title";
+
+        resourceDiv.appendChild(title);
+
+        data.resources.forEach(link => {
+            const card = document.createElement("div");
+            card.className = "resource-card";
+
+            const a = document.createElement("a");
+            a.href = link.url;
+            a.target = "_blank";
+            a.innerText = link.title;
+
+            card.appendChild(a);
+            resourceDiv.appendChild(card);
+        });
+
+        bubble.appendChild(resourceDiv);
+    }
+});
 
     } catch (error) {
         const fallbackText = "Sorry, I can’t answer that at the moment. Please check again in the next few days as my training and knowledge base continue to improve.";

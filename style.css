@@ -157,6 +157,7 @@ body {
     font-size: 42px;
     font-weight: 800;
     line-height: 1;
+    word-break: break-word;
 }
 
 .sub-title {
@@ -168,7 +169,10 @@ body {
 }
 
 .chat-box {
-    flex: 1;
+    flex: unset;              /* 🔥 THIS is the real fix */
+    max-height: 60vh;         /* controls height nicely */
+    min-height: 180px;        /* keeps it usable */
+
     background: white;
     border-radius: 22px;
     padding: 24px;
@@ -177,11 +181,13 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
-    min-height: 420px;
+
+    justify-content: flex-start; /* keeps content at top */
 }
 
 .welcome-card {
-    margin: auto;
+    margin: 0 auto;              /* center horizontally only */
+    margin-top: 40px;            /* control vertical position */
     max-width: 520px;
     text-align: center;
     color: #475569;
@@ -433,6 +439,12 @@ body {
     .message-bubble {
         max-width: 90%;
     }
+
+    .chat-box {
+        min-height: 280px;
+    }
+
+   
 }
 
 @media (max-width: 768px) {
@@ -462,7 +474,13 @@ body {
 
     .chat-box {
         padding: 18px;
-        min-height: 360px;
+        min-height: 160px;   /* 🔥 reduced */
+        max-height: 50vh;    /* 🔥 controls space */
+    }
+
+    .welcome-card {
+        margin-top: 20px;
+        margin-bottom: 10px;
     }
 
     .input-panel {
@@ -473,4 +491,62 @@ body {
     .ask-btn {
         width: 100%;
     }
+}
+
+@media (max-width: 480px) {
+    .brand-name {
+        font-size: 28px;
+    }
+
+    .main-title {
+        font-size: 24px;
+    }
+
+    .sub-title {
+        font-size: 14px;
+    }
+
+    .prompt-chip {
+        width: 100%;
+        text-align: center;
+    }
+
+    .message-bubble {
+        max-width: 95%;
+    }
+}
+
+
+
+.resource-links {
+    margin-top: 14px;
+}
+
+.resource-title {
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 8px;
+    color: #475569;
+}
+
+.resource-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    background: #f8fafc;
+    transition: all 0.2s ease;
+}
+
+.resource-card a {
+    text-decoration: none;
+    color: #1e293b;
+    font-size: 14px;
+    font-weight: 600;
+    word-break: break-word;
+}
+
+.resource-card:hover {
+    background: #e2e8f0;
+    transform: translateY(-1px);
 }

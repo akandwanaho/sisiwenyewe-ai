@@ -7,6 +7,311 @@ import faiss
 import numpy as np
 import requests
 
+RESOURCE_MAP = {
+    "anthrax": [
+        {
+            "title": "CDC: About Anthrax",
+            "url": "https://www.cdc.gov/anthrax/about/index.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Clinical Overview of Anthrax",
+            "url": "https://www.cdc.gov/anthrax/hcp/clinical-overview/index.html",
+            "type": "clinical"
+        },
+        {
+            "title": "CDC: Anthrax as a Bioterrorism Threat",
+            "url": "https://www.cdc.gov/anthrax/bioterrorism/index.html",
+            "type": "preparedness"
+        },
+        {
+            "title": "CDC: Anthrax Prevention",
+            "url": "https://www.cdc.gov/anthrax/prevention/index.html",
+            "type": "prevention"
+        }
+    ],
+
+    "botulism": [
+        {
+            "title": "CDC: About Botulism",
+            "url": "https://www.cdc.gov/botulism/about/index.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Clinical Overview of Botulism",
+            "url": "https://www.cdc.gov/botulism/hcp/clinical-overview/index.html",
+            "type": "clinical"
+        },
+        {
+            "title": "CDC: Symptoms of Botulism",
+            "url": "https://www.cdc.gov/botulism/signs-symptoms/index.html",
+            "type": "symptoms"
+        },
+        {
+            "title": "CDC: Botulism as a Bioterrorism Threat",
+            "url": "https://www.cdc.gov/botulism/bioterrorism/index.html",
+            "type": "preparedness"
+        }
+    ],
+
+    "smallpox": [
+        {
+            "title": "CDC: About Smallpox",
+            "url": "https://www.cdc.gov/smallpox/about/index.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Smallpox History",
+            "url": "https://www.cdc.gov/smallpox/about/history.html",
+            "type": "background"
+        },
+        {
+            "title": "CDC: Smallpox as a Bioterrorism Threat",
+            "url": "https://www.cdc.gov/smallpox/bioterrorism/index.html",
+            "type": "preparedness"
+        },
+        {
+            "title": "CDC Stacks: Smallpox Overview PDF",
+            "url": "https://stacks.cdc.gov/view/cdc/26503/cdc_26503_DS1.pdf",
+            "type": "reference"
+        }
+    ],
+
+    "sarin": [
+        {
+            "title": "CDC: Sarin Fact Sheet",
+            "url": "https://www.cdc.gov/chemical-emergencies/chemical-fact-sheets/sarin.html",
+            "type": "public_health"
+        },
+        {
+            "title": "NIOSH: Sarin (GB) Emergency Response Card",
+            "url": "https://www.cdc.gov/niosh/ershdb/emergencyresponsecard_29750001.html",
+            "type": "responder"
+        },
+        {
+            "title": "CDC Stacks: Sarin Quick Reference Guide PDF",
+            "url": "https://stacks.cdc.gov/view/cdc/248932/cdc_248932_DS1.pdf",
+            "type": "reference"
+        },
+        {
+            "title": "NIH NCBI: Sarin Background Reference",
+            "url": "https://www.ncbi.nlm.nih.gov/books/NBK222849/",
+            "type": "scientific"
+        }
+    ],
+
+    "mustard gas": [
+        {
+            "title": "CDC: Mustard Gas Fact Sheet",
+            "url": "https://www.cdc.gov/chemical-emergencies/chemical-fact-sheets/mustard-gas.html",
+            "type": "public_health"
+        },
+        {
+            "title": "NIOSH: Sulfur Mustard Emergency Response Card",
+            "url": "https://www.cdc.gov/niosh/ershdb/emergencyresponsecard_29750008.html",
+            "type": "responder"
+        },
+        {
+            "title": "ATSDR: Sulfur Mustard ToxFAQs PDF",
+            "url": "https://www.atsdr.cdc.gov/toxfaqs/tfacts49.pdf",
+            "type": "toxicology"
+        },
+        {
+            "title": "CDC Stacks: Sulfur Mustard Reference",
+            "url": "https://stacks.cdc.gov/view/cdc/130184",
+            "type": "reference"
+        }
+    ],
+
+    "cyanide": [
+        {
+            "title": "CDC: Cyanide Fact Sheet",
+            "url": "https://www.cdc.gov/chemical-emergencies/chemical-fact-sheets/cyanide.html",
+            "type": "public_health"
+        },
+        {
+            "title": "NIOSH: Hydrogen Cyanide Pocket Guide",
+            "url": "https://www.cdc.gov/niosh/npg/npgd0333.html",
+            "type": "responder"
+        },
+        {
+            "title": "ATSDR: Cyanide ToxFAQs PDF",
+            "url": "https://www.atsdr.cdc.gov/toxfaqs/tfacts8.pdf",
+            "type": "toxicology"
+        },
+        {
+            "title": "NIOSH: Hydrogen Cyanide Emergency Response Card",
+            "url": "https://www.cdc.gov/niosh/ershdb/emergencyresponsecard_29750038.html",
+            "type": "responder"
+        }
+    ],
+
+    "radiological exposure": [
+        {
+            "title": "CDC: Radiation Emergencies",
+            "url": "https://www.cdc.gov/radiation-emergencies/index.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: About Radiation Emergencies",
+            "url": "https://www.cdc.gov/radiation-emergencies/about/index.html",
+            "type": "background"
+        },
+        {
+            "title": "CDC: Preparing for a Radiation Emergency",
+            "url": "https://www.cdc.gov/radiation-emergencies/safety/index.html",
+            "type": "preparedness"
+        },
+        {
+            "title": "CDC: Radiation Response Briefing Manual PDF",
+            "url": "https://www.cdc.gov/radiation-emergencies/media/pdfs/2024/04/20_316861-A_RadiationResponse-508-1.pdf",
+            "type": "responder"
+        }
+    ],
+
+    "nuclear fallout": [
+        {
+            "title": "CDC: Nuclear Blast FAQ",
+            "url": "https://www.cdc.gov/radiation-emergencies/about/nuclear-blast-faq.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Nuclear Weapon Infographic",
+            "url": "https://www.cdc.gov/radiation-emergencies/infographic/nuclear-weapon.html",
+            "type": "preparedness"
+        },
+        {
+            "title": "CDC: Preparing for Radiation Incidents",
+            "url": "https://www.cdc.gov/radiation-emergencies/hcp/nuclear-detonations/preparing.html",
+            "type": "responder"
+        },
+        {
+            "title": "CDC: Immediate Actions After a Nuclear Detonation",
+            "url": "https://www.cdc.gov/radiation-emergencies/hcp/nuclear-detonations/immediate-actions.html",
+            "type": "responder"
+        }
+    ],
+
+    "ppe": [
+        {
+            "title": "NIOSH: PPE for Emergency Preparedness",
+            "url": "https://www.cdc.gov/niosh/emres/safety/ppe.html",
+            "type": "responder"
+        },
+        {
+            "title": "NIOSH: Respirator Types and Use",
+            "url": "https://www.cdc.gov/niosh/ppe/respirators/index.html",
+            "type": "respiratory"
+        },
+        {
+            "title": "NIOSH: CBRN Respiratory Protection Handbook Update",
+            "url": "https://www.cdc.gov/niosh/bulletin/2025/cbrn-handbook.html",
+            "type": "respiratory"
+        },
+        {
+            "title": "NIOSH: Respiratory Protection for Emergencies",
+            "url": "https://www.cdc.gov/niosh/bulletin/2009/respiratory-protection-emergencies.html",
+            "type": "respiratory"
+        }
+    ],
+
+    "respiratory protection": [
+        {
+            "title": "NIOSH: Respirator Types and Use",
+            "url": "https://www.cdc.gov/niosh/ppe/respirators/index.html",
+            "type": "respiratory"
+        },
+        {
+            "title": "NIOSH: PPE for Emergency Preparedness",
+            "url": "https://www.cdc.gov/niosh/emres/safety/ppe.html",
+            "type": "responder"
+        },
+        {
+            "title": "NIOSH: CBRN Respiratory Protection Handbook Update",
+            "url": "https://www.cdc.gov/niosh/bulletin/2025/cbrn-handbook.html",
+            "type": "respiratory"
+        }
+    ],
+
+    "decontamination": [
+        {
+            "title": "CDC: How to Self-Decontaminate After a Radiation Emergency",
+            "url": "https://www.cdc.gov/radiation-emergencies/prevention/self-decontaminate.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Decontamination for Yourself and Others",
+            "url": "https://www.cdc.gov/radiation-emergencies/infographic/decontamination.html",
+            "type": "public_health"
+        },
+        {
+            "title": "CDC: Safety Guidelines for Decontamination of Radioactive Material",
+            "url": "https://www.cdc.gov/radiation-health/safety/decontamination.html",
+            "type": "guidance"
+        },
+        {
+            "title": "CDC: What to Do — Stay Inside",
+            "url": "https://www.cdc.gov/radiation-emergencies/response/stay-inside.html",
+            "type": "preparedness"
+        }
+    ],
+
+    "emergency response": [
+        {
+            "title": "NIOSH: Emergency Response Safety and Health Database",
+            "url": "https://www.cdc.gov/niosh/ershdb/default.html",
+            "type": "responder"
+        },
+        {
+            "title": "NIOSH: Emergency Preparedness and Response Program",
+            "url": "https://www.cdc.gov/niosh/research-programs/portfolio/epr.html",
+            "type": "program"
+        },
+        {
+            "title": "CDC: Radiation Response Briefing Manual PDF",
+            "url": "https://www.cdc.gov/radiation-emergencies/media/pdfs/2024/04/20_316861-A_RadiationResponse-508-1.pdf",
+            "type": "responder"
+        },
+        {
+            "title": "CDC: Response to Nuclear or Radiological Emergencies",
+            "url": "https://www.cdc.gov/radiation-emergencies/programs/index.html",
+            "type": "program"
+        }
+    ],
+
+    "biosurveillance": [
+        {
+            "title": "CDC: BioSense Platform",
+            "url": "https://www.cdc.gov/nssp/php/about/about-nssp-and-the-biosense-platform.html",
+            "type": "surveillance"
+        },
+        {
+            "title": "CDC: Surveillance Resource Center",
+            "url": "https://www.cdc.gov/ophdst/data-research/index.html",
+            "type": "surveillance"
+        },
+        {
+            "title": "CDC Stacks: National Biosurveillance Strategy",
+            "url": "https://stacks.cdc.gov/view/cdc/35002",
+            "type": "strategy"
+        },
+        {
+            "title": "CDC Stacks: National Biosurveillance Advisory Report",
+            "url": "https://stacks.cdc.gov/view/cdc/12000",
+            "type": "strategy"
+        }
+    ]
+}
+
+def get_resources(question: str):
+    q = question.lower()
+
+    for topic, links in RESOURCE_MAP.items():
+        if topic in q:
+            return links[:3]  # limit to 3 clean links
+
+    return []
+
 app = Flask(__name__)
 CORS(app)
 
@@ -311,6 +616,8 @@ def home():
 def chat():
     data = request.get_json(silent=True) or {}
     question = (data.get("question") or "").strip()
+
+   
     history = data.get("history", [])
 
     print(f"Question received: {question}")
@@ -378,10 +685,13 @@ def chat():
         top_text = results[0]["text"] if results else ""
         answer = clean_answer(top_text[:350]) if top_text else fallback_response()["answer"]
 
+    resources = get_resources(question)
+
     return jsonify({
-        "answer": answer,
-        "sources": [r["file"] for r in results]
-    })
+    "answer": answer,
+    "sources": [r["file"] for r in results],
+    "resources": resources
+})
 
 
 if __name__ == "__main__":

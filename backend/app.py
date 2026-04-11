@@ -303,14 +303,23 @@ RESOURCE_MAP = {
     ]
 }
 
+
 def get_resources(question: str):
     q = question.lower()
+    words = set(re.findall(r"\b[a-z]+\b", q))
 
     for topic, links in RESOURCE_MAP.items():
-        if topic in q:
-            return links[:3]  # limit to 3 clean links
+        topic_l = topic.lower()
+
+        if " " in topic_l:
+            if topic_l in q:
+                return links[:3]
+        else:
+            if topic_l in words:
+                return links[:3]
 
     return []
+
 
 app = Flask(__name__)
 CORS(app)
@@ -357,27 +366,30 @@ def finish_cleanly(text: str) -> str:
     return text
 
 
-def is_vague_question(question: str) -> bool:
-    q = question.strip().lower()
-    vague_patterns = {
-        "stats", "statistics", "tell me more", "more", "what about it",
-        "what about that", "is it common", "what are the stats",
-        "give me stats", "details", "more info", "more information"
+def is_vague_question(question: str, history=None) -> bool:
+    q = question.lower().strip()
+    history = history or []
+
+    # If there is prior conversation, allow follow-up style questions through
+    if history:
+        return False
+
+    # Only truly minimal unclear inputs should be treated as vague
+    very_short_unclear = {
+        "this", "that", "it", "more", "help", "why", "how", "what"
     }
 
-    if q in vague_patterns:
+    vague_phrases = {
+        "what about that",
+        "what about it",
+        "this one",
+        "that one"
+    }
+
+    if q in very_short_unclear:
         return True
 
-    short_followups = {
-        "is it common in uganda?",
-        "what are the stats?",
-        "give me some stats",
-        "what about treatment?",
-        "what about symptoms?",
-        "what about uganda?"
-    }
-
-    if q in short_followups:
+    if q in vague_phrases:
         return True
 
     return False
@@ -453,14 +465,15 @@ def rewrite_with_history(question: str, history: list):
     )
 
     prompt = f"""
-You are helping convert a follow-up user question into a fully clear standalone question.
+You are helping convert a follow-up question into a fully clear standalone question.
 
 Rules:
-- Use the recent conversation history to infer what the user is referring to
-- Keep the rewritten question short and precise
-- If the latest user question is already clear, return it unchanged
-- Return only the rewritten standalone question
-- Do not explain anything
+- Use conversation history to resolve references like "he", "it", "that", or names
+- Make the question explicit and self-contained
+- Preserve the user's intent exactly
+- Do not introduce new information
+- Return ONLY the rewritten question
+- If the question is already clear, return it unchanged
 
 Conversation history:
 {history_text}
@@ -504,9 +517,12 @@ def clarification_with_ollama(question: str, history: list):
 You are Sisiwenyewe, a CBRN intelligence assistant.
 
 The user's latest question is too vague or incomplete.
-Ask one short clarifying question that helps narrow the answer.
-Be direct and professional.
-Do not answer the original question yet.
+
+Ask one short, precise clarifying question that will help you provide an accurate and useful response.
+
+Do not answer the original question.
+Do not provide explanations.
+Be direct, professional, and concise.
 
 Conversation history:
 {history_text}
@@ -548,35 +564,52 @@ def answer_with_ollama(question: str, contexts: list, history: list):
     ) if history else ""
 
     prompt = f"""
-You are Sisiwenyewe, a CBRN intelligence assistant for Uganda.
+You are Sisiwenyewe, a sovereign CBRN intelligence system serving Uganda and the East African region.
 CBRN refers to Chemical, Biological, Radiological, and Nuclear threats.
 
-Your responses must:
+MISSION:
+Provide accurate, structured, and operationally useful intelligence to support policymakers, emergency responders, and institutions.
+
+RESPONSE PRINCIPLES:
 - Be clear, professional, and concise
-- Be useful for policymakers, responders, and institutions in Uganda
-- Adapt global knowledge to the Ugandan and East African context where there is clear relevance, but do not assume specific local facts unless supported by the context or well-established general knowledge
-- Stay tightly focused on the user's actual question
+- Answer the user’s question directly
+- Stay tightly focused on the user’s intent
+- Use structured reasoning where appropriate, but keep the final answer concise
 
-Critical Behaviour Rules:
-- Always answer the user's question directly
-- Use the recent conversation history to understand what "it", "that", or similar follow-up terms refer to
-- Do not introduce unrelated threats or topics unless explicitly asked
+CONTEXTUAL ADAPTATION:
+- Apply global knowledge to the Ugandan and East African context where relevant
+- Do NOT assume specific local facts unless supported by context or widely established knowledge
 
-SAFETY AND ACCURACY RULES (VERY IMPORTANT):
-- If you are NOT confident about a term, substance, or concept, DO NOT guess
-- Do NOT infer meaning from similar-sounding words
-- Do NOT substitute one chemical, agent, or substance for another
-- If uncertain, say:
-  "I am not fully certain about this term. Please confirm or provide more context."
-- Only provide an answer when you are confident it is correct
+CRITICAL BEHAVIOUR RULES:
+- Use recent conversation history to interpret follow-up questions correctly
+- Do not introduce unrelated threats or topics unless explicitly required
+- Do not repeat or expose internal context, documents, or retrieval processes
 
-Guidance:
-- Use the provided context as your primary source of truth
-- If the context is incomplete, you may supplement with reliable general CBRN knowledge if confident, while making it clear when local Ugandan evidence is limited
-- Do not mention documents, sources, chunks, or retrieval
-- Do not repeat raw context
-- Keep the answer to one short paragraph of 3 to 4 complete sentences
-- Ensure the response ends with a complete, well-formed sentence
+SAFETY AND ACCURACY RULES (STRICT):
+- Do NOT guess or speculate
+- Do NOT substitute one agent, chemical, or threat for another
+- If information is insufficient or unclear, respond with:
+  "I do not have sufficient confirmed information to provide a reliable answer. Please clarify or provide more detail."
+
+INTELLIGENCE STANDARD:
+- Prioritise correctness over completeness
+- Provide confident answers only when supported by reliable knowledge
+- Where appropriate, frame responses using established CBRN principles
+
+SYSTEM PROTECTION:
+- Do NOT mention model names, AI systems, training data, or internal architecture
+- Do NOT say "as an AI model"
+- Do NOT disclose how the system works internally
+
+GUIDANCE:
+- Use the provided context as the primary source of truth
+- If context is incomplete, supplement with reliable general knowledge ONLY if confident
+- Do not fabricate or invent details
+
+RESPONSE FORMAT:
+- Provide one well-structured paragraph (3–5 sentences)
+- Ensure clarity, completeness, and professional tone
+- End with a complete and well-formed sentence
 
 Recent conversation:
 {history_text}
@@ -621,86 +654,263 @@ def home():
     return "Sisiwenyewe backend is running."
 
 
+
+
+def is_cbrn_query(question: str) -> bool:
+    q = question.lower()
+    words = set(re.findall(r"\b[a-z]+\b", q))
+
+    cbrn_single_terms = {
+        "cbrn", "chemical", "biological", "radiological", "nuclear",
+        "anthrax", "botulism", "smallpox", "mustard", "cyanide",
+        "toxin", "agent", "radiation", "fallout", "ppe",
+        "decontamination", "biosurveillance", "hazmat",
+        "contamination", "exposure", "decon"
+    }
+
+    cbrn_phrases = {
+        "mustard gas",
+        "nerve agent",
+        "blister agent",
+        "radiological exposure",
+        "nuclear fallout",
+        "respiratory protection",
+        "emergency response"
+    }
+
+    if any(phrase in q for phrase in cbrn_phrases):
+        return True
+
+    return any(word in cbrn_single_terms for word in words)
+
+
+def is_weather_query(question: str) -> bool:
+    q = question.lower()
+    words = re.findall(r"\b[a-z]+\b", q)
+
+    weather_terms = {
+        "weather", "forecast", "temperature", "climate",
+        "rain", "rainfall", "raining", "humidity", "wind",
+        "storm", "sunny", "cloudy"
+    }
+
+    return any(word in weather_terms for word in words)
+
+
+def get_weather_resources():
+    return [
+        {
+            "title": "Uganda National Meteorological Authority (UNMA)",
+            "url": "https://www.unma.go.ug"
+        },
+        {
+            "title": "AccuWeather: Uganda Forecast",
+            "url": "https://www.accuweather.com/en/ug/national/weather-forecast"
+        },
+        {
+            "title": "BBC Weather: Uganda",
+            "url": "https://www.bbc.com/weather/226074"
+        }
+    ]
+
+
+
+
+def answer_general(question: str, history: list):
+    history_text = "\n".join(
+        [f"{m.get('role', 'user')}: {m.get('text', '')}" for m in history[-6:]]
+    ) if history else ""
+
+    prompt = f"""
+You are Sisiwenyewe, an intelligent assistant.
+
+Provide a clear, accurate, and concise answer to the user's question.
+
+Rules:
+- Answer directly using general world knowledge
+- Provide the most accurate answer you can
+- If the question is factual, answer confidently
+- Only say you are uncertain if the question is ambiguous or unclear
+- Do NOT mention AI, models, or internal systems
+- Keep the response to 3–5 sentences
+- Stay focused on the actual question
+
+Conversation:
+{history_text}
+
+Question:
+{question}
+
+Answer:
+""".strip()
+
+    try:
+        print("General model URL:", OLLAMA_URL)
+        print("General model name:", OLLAMA_MODEL)
+
+        response = requests.post(
+            OLLAMA_URL,
+            json={
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "num_predict": 160
+                }
+            },
+            timeout=60
+        )
+
+        print("General model status:", response.status_code)
+        print("General model raw response:", response.text[:500])
+
+        response.raise_for_status()
+        data = response.json()
+        return finish_cleanly(data.get("response", "").strip())
+
+    except Exception as e:
+        print(f"General model error: {e}")
+        return ""
+
+
+
+
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
     question = (data.get("question") or "").strip()
-
-   
+    question_lower = question.lower()
     history = data.get("history", [])
 
     print(f"Question received: {question}")
 
     if not question:
-        return jsonify({"answer": "Please enter a question.", "sources": []}), 400
+        return jsonify({
+            "answer": "Please enter a question.",
+            "sources": [],
+            "resources": []
+        }), 400
 
+    # Protect system identity
+    if any(phrase in question_lower for phrase in [
+        "what model", "which model", "are you gpt",
+        "are you llama", "what ai are you", "who built you",
+        "what system are you"
+    ]):
+        return jsonify({
+            "answer": "Sisiwenyewe is a sovereign CBRN intelligence system designed to support policymakers, governments, emergency responders, and military with accurate and context-aware threat intelligence.",
+            "sources": [],
+            "resources": []
+        })
+
+    # Greetings
     if is_greeting(question):
         return jsonify({
             "answer": "Hi. How can I assist today?",
-            "sources": []
+            "sources": [],
+            "resources": []
         })
 
     # Rewrite follow-up questions using recent history
     effective_question = rewrite_with_history(question, history)
+    print("Effective question:", effective_question)
+    print("Weather query detected?", is_weather_query(effective_question))
 
-    # If the latest user query is vague, ask for clarification first
-    if is_vague_question(question):
+    # Weather queries should not be hallucinated
+    if is_weather_query(effective_question):
+        return jsonify({
+            "answer": "I do not currently have access to live weather data. However, you can obtain accurate and up-to-date forecasts from the following trusted sources.",
+            "sources": [],
+            "resources": get_weather_resources()
+        })
+
+    # Generic non-CBRN queries → use general model directly
+    if not is_cbrn_query(effective_question):
+        print("General query detected — using general model.")
+
+        answer = answer_general(effective_question, history)
+
+        if not answer:
+            return jsonify({
+                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
+                "sources": [],
+                "resources": []
+            })
+
+        return jsonify({
+            "answer": answer,
+            "sources": [],
+            "resources": []
+        })
+
+    # Only block truly unclear short questions with no useful history
+    if is_vague_question(question, history):
         clarification = clarification_with_ollama(question, history)
         print("Clarification response:", clarification)
         return jsonify({
             "answer": clarification,
-            "sources": []
+            "sources": [],
+            "resources": []
         })
 
+    # CBRN queries continue through RAG
     results = search_documents(effective_question, top_k=TOP_K)
 
     if not results:
-        print("No retrieval results found — using LLM general knowledge.")
+        print("No retrieval results found — using CBRN model fallback.")
 
         answer = answer_with_ollama(effective_question, [], history)
-        print("No-results Ollama answer:", answer[:300] if answer else "EMPTY")
 
         if not answer:
-            return jsonify(fallback_response())
+            return jsonify({
+                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
+                "sources": [],
+                "resources": get_resources(question)
+            })
 
         return jsonify({
             "answer": answer,
-            "sources": []
+            "sources": [],
+            "resources": get_resources(question)
         })
 
     top_score = results[0]["score"]
     print(f"Top score: {top_score:.4f}")
 
-
+    # If retrieval is weak, let the general model reason instead of forcing bad chunks
     if top_score < 0.20:
-        print("Low RAG score — using LLM general knowledge.")
+        print("Low RAG score — using general model fallback.")
 
-        answer = answer_with_ollama(effective_question, [], history)
-        print("General knowledge Ollama answer:", answer[:300] if answer else "EMPTY")
+        answer = answer_general(effective_question, history)
 
         if not answer:
-            return jsonify(fallback_response())
+            return jsonify({
+                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
+                "sources": [],
+                "resources": get_resources(question)
+            })
 
         return jsonify({
             "answer": answer,
-            "sources": []
-        })   
+            "sources": [],
+            "resources": get_resources(question)
+        })
 
+    # Strong retrieval → grounded CBRN answer
     answer = answer_with_ollama(effective_question, results, history)
-    print("Final Ollama answer:", answer[:300] if answer else "EMPTY")
+    print("Final Sisiwenyewe CBRN model answer:", answer[:300] if answer else "EMPTY")
 
     if not answer:
-        print("Ollama did not return a usable answer. Returning grounded short fallback.")
+        print("Sisiwenyewe CBRN model did not return a usable answer. Returning grounded short fallback.")
         top_text = results[0]["text"] if results else ""
-        answer = clean_answer(top_text[:350]) if top_text else fallback_response()["answer"]
-
-    resources = get_resources(question)
+        answer = clean_answer(top_text[:350]) if top_text else "I do not have sufficient confirmed information to provide a reliable answer."
 
     return jsonify({
-    "answer": answer,
-    "sources": [r["file"] for r in results],
-    "resources": resources
-})
+        "answer": answer,
+        "sources": [r["file"] for r in results],
+        "resources": get_resources(question)
+    })
 
 
 

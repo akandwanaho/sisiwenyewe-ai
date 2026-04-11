@@ -550,3 +550,24 @@ body {
     background: #e2e8f0;
     transform: translateY(-1px);
 }
+
+.app-footer {
+    margin-top: 20px;
+    padding: 16px 12px;
+    text-align: center;
+    font-size: 12px;
+    color: #94a3b8;
+    border-top: 1px solid #e5e7eb;
+}
+
+.app-footer a {
+    display: block;          /* 🔥 stacks nicely on mobile */
+    margin-top: 4px;
+    color: #0f172a;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.app-footer a:hover {
+    text-decoration: underline;
+}

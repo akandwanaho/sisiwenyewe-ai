@@ -109,40 +109,20 @@ def build_index():
 
     docs = load_documents()
 
-
-    docs.extend([
-       docs.append({
-    "id": "internal_profile_0",
-    "file": "internal_profile",
-    "path": "manual_entry",
-    "chunk_index": 0,
-    "text": "Prof Stephen Akandwanaho is a specialist in CBRN intelligent systems, artificial intelligence, and large language models. He holds a PhD in Computer Science (Artificial Intelligence) and is a Professor of Artificial Intelligence at Woxsen University in India. He also serves as the Executive Dean for the Faculty of Information Technology and Research at Richfield in South Africa. His work includes AI system design, intelligent decision-support systems, CBRN intelligence, digital transformation, and the application of advanced machine learning in higher education and national security contexts."
-}),
-        {
-            "id": "internal_profile_1",
-            "file": "internal_profile",
-            "path": "manual_entry",
-            "chunk_index": 1,
-            "text": "Prof Stephen Akandwanaho is a Professor of Artificial Intelligence at Woxsen University in India."
-        },
-        {
-            "id": "internal_profile_2",
-            "file": "internal_profile",
-            "path": "manual_entry",
-            "chunk_index": 2,
-            "text": "Prof Stephen Akandwanaho serves as the Executive Dean for the Faculty of Information Technology and Research at Richfield Graduate Institute of Technology in South Africa."
-        },
-        {
-            "id": "internal_profile_3",
-            "file": "internal_profile",
-            "path": "manual_entry",
-            "chunk_index": 3,
-            "text": "His work includes AI system design, intelligent decision-support systems, CBRN intelligence, digital transformation, and the application of advanced machine learning in higher education and national security contexts."
-        }
-    ])
+    # Add one consolidated internal profile entry
+    docs.append({
+        "id": "internal_profile_0",
+        "file": "internal_profile",
+        "path": "manual_entry",
+        "chunk_index": 0,
+        "text": "Prof Stephen Akandwanaho is a specialist in CBRN intelligent systems, artificial intelligence, and large language models. He holds a PhD in Computer Science (Artificial Intelligence) and is a Professor of Artificial Intelligence at Woxsen University in India. He also serves as the Executive Dean for the Faculty of Information Technology and Research at Richfield in South Africa. His work includes AI system design, intelligent decision-support systems, CBRN intelligence, digital transformation, and the application of advanced machine learning in higher education and national security contexts."
+    })
 
     if not docs:
         raise ValueError("No documents/chunks found to index.")
+
+    # Safety filter
+    docs = [d for d in docs if isinstance(d, dict) and d.get("text")]
 
     print(f"Loaded {len(docs)} chunks.")
 

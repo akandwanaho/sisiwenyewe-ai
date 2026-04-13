@@ -342,7 +342,7 @@ embedder = None
 
 def is_greeting(text: str) -> bool:
     q = text.strip().lower()
-    return q in {"hi", "hello", "hey", "good morning", "good afternoon", "good evening"}
+    return q in {"hi", "hello", "hey", "hei", "hie", "good morning", "good afternoon", "good evening"}
 
 
 def fallback_response():
@@ -445,13 +445,17 @@ def search_documents(query: str, top_k=TOP_K):
         if idx == -1:
             continue
 
-        doc = documents[idx]
-        results.append({
-            "score": float(score),
-            "file": doc["file"],
-            "text": doc["text"],
-            "chunk_index": doc["chunk_index"]
-        })
+        if idx < 0 or idx >= len(documents):
+            print(f"Skipping invalid document index: {idx} (documents length: {len(documents)})")
+            continue
+
+    doc = documents[idx]
+    results.append({
+    "score": float(score),
+    "file": doc["file"],
+    "text": doc["text"],
+    "chunk_index": doc["chunk_index"]
+})
 
     return results
 
@@ -493,7 +497,8 @@ Standalone question:
                 "stream": False,
                 "options": {
                     "temperature": 0.1,
-                    "num_predict": 60
+                    "num_predict": 60,
+                    "stop": ["\n\n\n"]
                 }
             },
             timeout=30
@@ -515,6 +520,9 @@ def clarification_with_ollama(question: str, history: list):
 
     prompt = f"""
 You are Sisiwenyewe, a CBRN intelligence assistant.
+
+LANGUAGE RULE:
+- Always respond in English only
 
 The user's latest question is too vague or incomplete.
 
@@ -576,6 +584,10 @@ RESPONSE PRINCIPLES:
 - Stay tightly focused on the user’s intent
 - Use structured reasoning where appropriate, but keep the final answer concise
 
+LANGUAGE RULE:
+- Always respond in English only
+- Never respond in Chinese or any other language
+
 CONTEXTUAL ADAPTATION:
 - Apply global knowledge to the Ugandan and East African context where relevant
 - Do NOT assume specific local facts unless supported by context or widely established knowledge
@@ -633,7 +645,7 @@ Answer:
                 "stream": False,
                 "options": {
                     "temperature": 0.2,
-                    "num_predict": 140
+                    "num_predict": 180
                 }
             },
             timeout=60
@@ -724,16 +736,31 @@ def answer_general(question: str, history: list):
     prompt = f"""
 You are Sisiwenyewe, an intelligent assistant.
 
-Provide a clear, accurate, and concise answer to the user's question.
+LANGUAGE RULE:
+- Always respond in English only
+- Never respond in Chinese or any other language
+
+MISSION:
+Provide accurate, clear, and reliable answers to the user's question.
 
 Rules:
 - Answer directly using general world knowledge
-- Provide the most accurate answer you can
-- If the question is factual, answer confidently
-- Only say you are uncertain if the question is ambiguous or unclear
+- For ordinary factual questions, provide the best direct answer you can
+- If the question is about a current office-holder, public figure, or recent political situation, answer cautiously and avoid pretending to have live verified data
+- If uncertain, say so clearly and briefly
 - Do NOT mention AI, models, or internal systems
-- Keep the response to 3–5 sentences
+- Keep the response to 2–4 sentences
 - Stay focused on the actual question
+
+CRITICAL FACT RULE:
+- If the question is about a specific person and you are not certain, DO NOT guess
+- Do NOT fabricate biographies, roles, or affiliations
+- Do NOT infer identity from similar names
+
+ACCURACY PRIORITY:
+- Prioritise correctness over completeness
+- Never invent facts to fill gaps
+- Give the best answer you can from general knowledge, while avoiding false certainty for live or changing facts
 
 Conversation:
 {history_text}
@@ -774,6 +801,89 @@ Answer:
         return ""
 
 
+def is_profile_query(question: str) -> bool:
+    q = question.lower()
+    profile_terms = [
+        "prof stephen",
+        "stephen akandwanaho",
+        "akandwanaho",
+        "who is prof stephen",
+        "who is stephen akandwanaho",
+        "mugisha stephen",
+        "mugisha akandwanaho",
+        "prof mugisha akandwanaho",
+        "prof mugisha stephen"
+    ]
+    return any(term in q for term in profile_terms)
+
+
+def is_current_office_query(question: str) -> bool:
+    q = question.lower()
+    office_terms = [
+        "president of", "prime minister of", "ceo of",
+        "current president", "current prime minister",
+        "who leads", "head of state"
+    ]
+    return any(term in q for term in office_terms)
+
+
+
+def search_profile_documents(query: str, top_k=TOP_K):
+    if not query.strip():
+        return []
+
+    query_embedding = embedder.encode(
+        [query],
+        convert_to_numpy=True,
+        normalize_embeddings=True
+    ).astype(np.float32)
+
+    profile_docs = []
+    profile_vectors = []
+
+    # collect only internal_profile rows
+    for i, doc in enumerate(documents):
+        if doc.get("file") == "internal_profile":
+            profile_docs.append(doc)
+            profile_vectors.append(i)
+
+    if not profile_docs:
+        return []
+
+    # build temporary matrix from the same FAISS-loaded documents order
+    # easiest way: re-embed profile texts directly
+    profile_texts = [d["text"] for d in profile_docs]
+    profile_embeddings = embedder.encode(
+        profile_texts,
+        convert_to_numpy=True,
+        normalize_embeddings=True
+    ).astype(np.float32)
+
+    scores = np.dot(profile_embeddings, query_embedding[0])
+
+    ranked = np.argsort(scores)[::-1][:top_k]
+
+    results = []
+    for idx in ranked:
+        doc = profile_docs[idx]
+        results.append({
+            "score": float(scores[idx]),
+            "file": doc["file"],
+            "text": doc["text"],
+            "chunk_index": doc["chunk_index"]
+        })
+
+    return results
+
+
+
+def search_documents_filtered(query: str, file_filter: str, top_k=TOP_K):
+    results = search_documents(query, top_k=top_k * 5)
+    filtered = [r for r in results if r["file"] == file_filter]
+    return filtered[:top_k]
+
+
+    
 
 
 @app.route("/chat", methods=["POST"])
@@ -812,12 +922,11 @@ def chat():
             "resources": []
         })
 
-    # Rewrite follow-up questions using recent history
+    # Rewrite follow-up questions
     effective_question = rewrite_with_history(question, history)
     print("Effective question:", effective_question)
-    print("Weather query detected?", is_weather_query(effective_question))
 
-    # Weather queries should not be hallucinated
+    # Weather queries
     if is_weather_query(effective_question):
         return jsonify({
             "answer": "I do not currently have access to live weather data. However, you can obtain accurate and up-to-date forecasts from the following trusted sources.",
@@ -825,7 +934,64 @@ def chat():
             "resources": get_weather_resources()
         })
 
-    # Generic non-CBRN queries → use general model directly
+       # Profile queries (PROFILE-ONLY RAG)
+    if is_profile_query(effective_question):
+        print("Profile query detected — using profile-only RAG.")
+
+        results = search_profile_documents(
+            effective_question,
+            top_k=TOP_K
+        )
+
+        print("Profile results:", results)
+
+        if results:
+            answer = answer_with_ollama(effective_question, results, history)
+
+            if not answer:
+                top_text = results[0]["text"]
+                answer = clean_answer(top_text[:900])
+
+            return jsonify({
+                "answer": answer,
+                "sources": [r["file"] for r in results],
+                "resources": []
+            })
+
+        return jsonify({
+            "answer": "I do not have confirmed information about that individual.",
+            "sources": [],
+            "resources": []
+        })
+
+
+    # Vague questions
+    if is_vague_question(question, history):
+        clarification = clarification_with_ollama(question, history)
+        return jsonify({
+            "answer": clarification,
+            "sources": [],
+            "resources": []
+        })
+
+    # Current office queries
+    if is_current_office_query(effective_question):
+        answer = answer_general(effective_question, history)
+
+        if not answer:
+            return jsonify({
+                "answer": "I do not currently have confirmed live information for that office-holder query. Please consult an official or trusted current source.",
+                "sources": [],
+                "resources": []
+            })
+
+        return jsonify({
+            "answer": answer,
+            "sources": [],
+            "resources": []
+        })
+
+    # General queries (non-CBRN)
     if not is_cbrn_query(effective_question):
         print("General query detected — using general model.")
 
@@ -844,21 +1010,11 @@ def chat():
             "resources": []
         })
 
-    # Only block truly unclear short questions with no useful history
-    if is_vague_question(question, history):
-        clarification = clarification_with_ollama(question, history)
-        print("Clarification response:", clarification)
-        return jsonify({
-            "answer": clarification,
-            "sources": [],
-            "resources": []
-        })
-
-    # CBRN queries continue through RAG
+    # CBRN queries (RAG)
     results = search_documents(effective_question, top_k=TOP_K)
 
     if not results:
-        print("No retrieval results found — using CBRN model fallback.")
+        print("No retrieval results — using fallback.")
 
         answer = answer_with_ollama(effective_question, [], history)
 
@@ -878,9 +1034,9 @@ def chat():
     top_score = results[0]["score"]
     print(f"Top score: {top_score:.4f}")
 
-    # If retrieval is weak, let the general model reason instead of forcing bad chunks
+    # Weak RAG → fallback to general
     if top_score < 0.20:
-        print("Low RAG score — using general model fallback.")
+        print("Low RAG score — using general model.")
 
         answer = answer_general(effective_question, history)
 
@@ -897,22 +1053,18 @@ def chat():
             "resources": get_resources(question)
         })
 
-    # Strong retrieval → grounded CBRN answer
+    # Strong RAG
     answer = answer_with_ollama(effective_question, results, history)
-    print("Final Sisiwenyewe CBRN model answer:", answer[:300] if answer else "EMPTY")
 
     if not answer:
-        print("Sisiwenyewe CBRN model did not return a usable answer. Returning grounded short fallback.")
-        top_text = results[0]["text"] if results else ""
-        answer = clean_answer(top_text[:350]) if top_text else "I do not have sufficient confirmed information to provide a reliable answer."
+        top_text = results[0]["text"]
+        answer = clean_answer(top_text[:350])
 
     return jsonify({
         "answer": answer,
         "sources": [r["file"] for r in results],
         "resources": get_resources(question)
     })
-
-
 
 if __name__ == "__main__":
     print("Loading RAG assets for server startup...")

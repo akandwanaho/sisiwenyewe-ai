@@ -401,9 +401,7 @@ def is_live_sensor_query(question: str) -> bool:
         "latest sensor", "latest readings",
         "latest sensor readings",
         "dose rate", "count rate",
-        "radiation level", "live cbrn", "current cbrn",
-        "sensor trend", "sensor trends",
-        "radiation trend", "radiation trends",
+        "radiation level",
         "which device", "device online", "online device",
         "what are the readings", "show readings",
         "sensor information", "sensor values",
@@ -415,14 +413,97 @@ def is_live_sensor_query(question: str) -> bool:
     if any(term in q for term in live_terms):
         return True
 
-    # broader natural-language patterns
-    if "device" in q and ("reading" in q or "readings" in q or "status" in q or "online" in q):
+    if "device" in q and ("reading" in q or "status" in q or "online" in q):
         return True
 
     if "sensor" in q and ("latest" in q or "current" in q or "online" in q or "status" in q):
         return True
 
     return False
+
+
+def is_live_sensor_analysis_query(question: str) -> bool:
+    q = question.lower()
+
+    analysis_terms = [
+        "analysis", "analyze", "analyse",
+        "risk level", "threat level",
+        "assessment", "briefing", "report",
+        "generate report", "situation report",
+        "trend", "trends",
+        "anomaly", "anomalies",
+        "alert", "alerts",
+        "is everything normal",
+        "is there any danger",
+        "is it safe",
+        "what does this mean",
+        "detailed analysis"
+    ]
+
+    sensor_terms = [
+        "sensor", "sensors",
+        "reading", "readings",
+        "dose rate", "count rate",
+        "device", "online",
+        "live data", "current data",
+        "radiation level"
+    ]
+
+    return any(a in q for a in analysis_terms) and any(s in q for s in sensor_terms)
+
+
+def build_sensor_analysis(rows):
+    if not rows:
+        return {
+            "summary": "No recent sensor data available.",
+            "device": None,
+            "latest_dose_rate": None,
+            "latest_count_rate": None,
+            "status": None,
+            "trend": "unknown",
+            "risk_level": "unknown",
+            "anomaly": False
+        }
+
+    latest = rows[0]
+    dose_rates = [r["dose_rate"] for r in rows if r.get("dose_rate") is not None]
+    count_rates = [r["count_rate"] for r in rows if r.get("count_rate") is not None]
+
+    avg_dose = sum(dose_rates) / len(dose_rates) if dose_rates else None
+    avg_count = sum(count_rates) / len(count_rates) if count_rates else None
+
+    trend = "stable"
+    if len(dose_rates) >= 2:
+        if dose_rates[0] > dose_rates[-1]:
+            trend = "increasing"
+        elif dose_rates[0] < dose_rates[-1]:
+            trend = "decreasing"
+
+    latest_dose = latest.get("dose_rate")
+    anomaly = False
+    if avg_dose is not None and latest_dose is not None:
+        anomaly = latest_dose > avg_dose * 1.5
+
+    risk_level = "low"
+    if latest_dose is not None:
+        if latest_dose >= 1.0:
+            risk_level = "high"
+        elif latest_dose >= 0.3:
+            risk_level = "moderate"
+
+    return {
+        "device": latest.get("device_id"),
+        "location": latest.get("location"),
+        "status": latest.get("status"),
+        "sensor_type": latest.get("sensor_type"),
+        "latest_dose_rate": latest_dose,
+        "latest_count_rate": latest.get("count_rate"),
+        "average_dose_rate": avg_dose,
+        "average_count_rate": avg_count,
+        "trend": trend,
+        "risk_level": risk_level,
+        "anomaly": anomaly
+    }
 
 
 
@@ -1048,7 +1129,41 @@ def chat():
     effective_question = rewrite_with_history(question, history)
     print("Effective question:", effective_question)
 
-        # Live sensor queries
+        # Live sensor analysis queries
+    if is_live_sensor_analysis_query(effective_question):
+        print("Live sensor analysis query detected — using sensor database.")
+
+        try:
+            rows = fetch_recent_sensor_data(limit=20)
+            analysis_context = json.dumps(build_sensor_analysis(rows), indent=2)
+
+            live_context = [{
+                "score": 1.0,
+                "file": "live_sensor_analysis",
+                "text": analysis_context,
+                "chunk_index": 0
+            }]
+
+            answer = answer_with_ollama(effective_question, live_context, history)
+
+            if not answer:
+                answer = "I could not generate a detailed analysis from the current sensor data."
+
+            return jsonify({
+                "answer": answer,
+                "sources": ["live_sensor_analysis"],
+                "resources": []
+            })
+
+        except Exception as e:
+            print(f"Live sensor analysis DB error: {e}")
+            return jsonify({
+                "answer": "I could not access live sensor data at the moment. The system is currently operating in advisory mode.",
+                "sources": [],
+                "resources": []
+            })
+
+    # Live sensor queries
     if is_live_sensor_query(effective_question):
         print("Live sensor query detected — using sensor database.")
 
@@ -1081,44 +1196,6 @@ def chat():
                 "sources": [],
                 "resources": []
             })
-
-
-    # Weather queries
-    if is_weather_query(effective_question):
-        return jsonify({
-            "answer": "I do not currently have access to live weather data. However, you can obtain accurate and up-to-date forecasts from the following trusted sources.",
-            "sources": [],
-            "resources": get_weather_resources()
-        })
-
-       # Profile queries (PROFILE-ONLY RAG)
-    if is_profile_query(effective_question):
-        print("Profile query detected — using profile-only RAG.")
-
-        results = search_profile_documents(
-            effective_question,
-            top_k=1
-        )
-
-        print("Profile results:", results)
-
-        if results:
-            answer = answer_with_ollama(effective_question, results, history)
-
-            if not answer or len(answer) < 80:
-                answer = clean_answer(results[0]["text"])
-
-            return jsonify({
-                "answer": answer,
-                "sources": list(dict.fromkeys(r["file"] for r in results)),
-                "resources": []
-            })
-
-        return jsonify({
-            "answer": "I do not have confirmed information about that individual.",
-            "sources": [],
-            "resources": []
-        })
 
 
     # Vague questions

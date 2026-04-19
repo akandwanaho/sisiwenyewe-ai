@@ -392,14 +392,37 @@ def format_sensor_context(rows):
 
 def is_live_sensor_query(question: str) -> bool:
     q = question.lower()
+
     live_terms = [
-        "live sensor", "live sensors", "current sensor", "current sensors",
-        "current reading", "current readings", "recent sensor data",
-        "sensor status", "latest sensor", "dose rate", "count rate",
-        "radiation level", "live cbrn", "current cbrn", "sensor trend",
-        "sensor trends", "radiation trend", "radiation trends"
+        "live sensor", "live sensors",
+        "current sensor", "current sensors",
+        "current reading", "current readings",
+        "recent sensor data", "sensor status",
+        "latest sensor", "latest readings",
+        "latest sensor readings",
+        "dose rate", "count rate",
+        "radiation level", "live cbrn", "current cbrn",
+        "sensor trend", "sensor trends",
+        "radiation trend", "radiation trends",
+        "which device", "device online", "online device",
+        "what are the readings", "show readings",
+        "sensor information", "sensor values",
+        "latest sensor data", "current sensor data",
+        "what sensor is online", "which sensor is online",
+        "current status of the sensors", "latest live data"
     ]
-    return any(term in q for term in live_terms)
+
+    if any(term in q for term in live_terms):
+        return True
+
+    # broader natural-language patterns
+    if "device" in q and ("reading" in q or "readings" in q or "status" in q or "online" in q):
+        return True
+
+    if "sensor" in q and ("latest" in q or "current" in q or "online" in q or "status" in q):
+        return True
+
+    return False
 
 
 
@@ -418,8 +441,8 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
 
 SENSOR_DB_HOST = os.getenv("SENSOR_DB_HOST", "192.168.5.125")
-SENSOR_DB_PORT = int(os.getenv("SENSOR_DB_PORT", "5432"))
-SENSOR_DB_NAME = os.getenv("SENSOR_DB_NAME", "sensors")   # replace if different
+SENSOR_DB_PORT = int(os.getenv("SENSOR_DB_PORT", "5435"))
+SENSOR_DB_NAME = os.getenv("SENSOR_DB_NAME", "cbrn_db")
 SENSOR_DB_USER = os.getenv("SENSOR_DB_USER", "postgres")
 SENSOR_DB_PASSWORD = os.getenv("SENSOR_DB_PASSWORD")
 

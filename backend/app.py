@@ -7,6 +7,13 @@ import faiss
 import numpy as np
 import requests
 
+import os
+import psycopg2
+from psycopg2.extras import RealDictCursor
+from dotenv import load_dotenv
+load_dotenv()
+
+
 RESOURCE_MAP = {
     "anthrax": [
         {
@@ -321,6 +328,81 @@ def get_resources(question: str):
     return []
 
 
+def get_sensor_db_connection():
+    return psycopg2.connect(
+        host=SENSOR_DB_HOST,
+        port=SENSOR_DB_PORT,
+        dbname=SENSOR_DB_NAME,
+        user=SENSOR_DB_USER,
+        password=SENSOR_DB_PASSWORD,
+        cursor_factory=RealDictCursor,
+        connect_timeout=10
+    )
+
+
+def fetch_recent_sensor_data(limit=20):
+    conn = get_sensor_db_connection()
+    try:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT
+                    id,
+                    timestamp,
+                    dose_rate,
+                    count_rate,
+                    device_id,
+                    location,
+                    status,
+                    sensor_type,
+                    created_at,
+                    updated_at
+                FROM sensor_readings
+                ORDER BY timestamp DESC
+                LIMIT %s
+            """, (limit,))
+            return cur.fetchall()
+    finally:
+        conn.close()
+
+
+def format_sensor_context(rows):
+    if not rows:
+        return "No recent live CBRN sensor data is available."
+
+    lines = []
+    for row in rows:
+        location = row.get("location")
+        if isinstance(location, dict):
+            location_str = json.dumps(location)
+        else:
+            location_str = str(location)
+
+        lines.append(
+            f"Time: {row.get('timestamp')}, "
+            f"Device: {row.get('device_id')}, "
+            f"Sensor type: {row.get('sensor_type')}, "
+            f"Dose rate: {row.get('dose_rate')}, "
+            f"Count rate: {row.get('count_rate')}, "
+            f"Status: {row.get('status')}, "
+            f"Location: {location_str}"
+        )
+
+    return "\n".join(lines)
+
+
+def is_live_sensor_query(question: str) -> bool:
+    q = question.lower()
+    live_terms = [
+        "live sensor", "live sensors", "current sensor", "current sensors",
+        "current reading", "current readings", "recent sensor data",
+        "sensor status", "latest sensor", "dose rate", "count rate",
+        "radiation level", "live cbrn", "current cbrn", "sensor trend",
+        "sensor trends", "radiation trend", "radiation trends"
+    ]
+    return any(term in q for term in live_terms)
+
+
+
 app = Flask(__name__)
 CORS(app)
 
@@ -330,8 +412,17 @@ INDEX_DIR = BASE_DIR / "rag_store"
 INDEX_PATH = INDEX_DIR / "cbrn.index"
 DOCS_PATH = INDEX_DIR / "documents.json"
 
-OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
-OLLAMA_MODEL = "qwen2.5:7b"
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
+
+
+
+SENSOR_DB_HOST = os.getenv("SENSOR_DB_HOST", "192.168.5.125")
+SENSOR_DB_PORT = int(os.getenv("SENSOR_DB_PORT", "5432"))
+SENSOR_DB_NAME = os.getenv("SENSOR_DB_NAME", "sensors")   # replace if different
+SENSOR_DB_USER = os.getenv("SENSOR_DB_USER", "postgres")
+SENSOR_DB_PASSWORD = os.getenv("SENSOR_DB_PASSWORD")
+
 
 TOP_K = 2
 
@@ -449,13 +540,13 @@ def search_documents(query: str, top_k=TOP_K):
             print(f"Skipping invalid document index: {idx} (documents length: {len(documents)})")
             continue
 
-    doc = documents[idx]
-    results.append({
-    "score": float(score),
-    "file": doc["file"],
-    "text": doc["text"],
-    "chunk_index": doc["chunk_index"]
-})
+        doc = documents[idx]
+        results.append({
+            "score": float(score),
+            "file": doc["file"],
+            "text": doc["text"],
+            "chunk_index": doc["chunk_index"]
+        })
 
     return results
 
@@ -617,6 +708,7 @@ GUIDANCE:
 - Use the provided context as the primary source of truth
 - If context is incomplete, supplement with reliable general knowledge ONLY if confident
 - Do not fabricate or invent details
+- If the context represents live sensor data, use it as the primary operational source and do not claim real-time confirmation beyond what the data shows
 
 RESPONSE FORMAT:
 - Provide one well-structured paragraph (3–5 sentences)
@@ -645,7 +737,7 @@ Answer:
                 "stream": False,
                 "options": {
                     "temperature": 0.2,
-                    "num_predict": 180
+                    "num_predict": 260
                 }
             },
             timeout=60
@@ -783,7 +875,7 @@ Answer:
                 "stream": False,
                 "options": {
                     "temperature": 0.3,
-                    "num_predict": 160
+                    "num_predict": 220
                 }
             },
             timeout=60
@@ -812,7 +904,16 @@ def is_profile_query(question: str) -> bool:
         "mugisha stephen",
         "mugisha akandwanaho",
         "prof mugisha akandwanaho",
-        "prof mugisha stephen"
+        "prof mugisha stephen",
+         "allan atwine",
+
+        "agaba allan",
+
+        "agaba allan atwine",
+
+        "who is allan atwine",
+
+        "who is agaba allan atwine"
     ]
     return any(term in q for term in profile_terms)
 
@@ -839,13 +940,13 @@ def search_profile_documents(query: str, top_k=TOP_K):
     ).astype(np.float32)
 
     profile_docs = []
-    profile_vectors = []
+   
 
     # collect only internal_profile rows
     for i, doc in enumerate(documents):
         if doc.get("file") == "internal_profile":
             profile_docs.append(doc)
-            profile_vectors.append(i)
+         
 
     if not profile_docs:
         return []
@@ -884,8 +985,6 @@ def search_documents_filtered(query: str, file_filter: str, top_k=TOP_K):
 
 
     
-
-
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json(silent=True) or {}
@@ -926,6 +1025,41 @@ def chat():
     effective_question = rewrite_with_history(question, history)
     print("Effective question:", effective_question)
 
+        # Live sensor queries
+    if is_live_sensor_query(effective_question):
+        print("Live sensor query detected — using sensor database.")
+
+        try:
+            rows = fetch_recent_sensor_data(limit=20)
+            sensor_context = format_sensor_context(rows)
+
+            live_context = [{
+                "score": 1.0,
+                "file": "live_sensor_data",
+                "text": sensor_context,
+                "chunk_index": 0
+            }]
+
+            answer = answer_with_ollama(effective_question, live_context, history)
+
+            if not answer:
+                answer = "I could not generate a live analysis from the current sensor data."
+
+            return jsonify({
+                "answer": answer,
+                "sources": ["live_sensor_data"],
+                "resources": []
+            })
+
+        except Exception as e:
+            print(f"Live sensor DB error: {e}")
+            return jsonify({
+                "answer": "I could not access live sensor data at the moment. The system is currently operating in advisory mode.",
+                "sources": [],
+                "resources": []
+            })
+
+
     # Weather queries
     if is_weather_query(effective_question):
         return jsonify({
@@ -940,7 +1074,7 @@ def chat():
 
         results = search_profile_documents(
             effective_question,
-            top_k=TOP_K
+            top_k=1
         )
 
         print("Profile results:", results)
@@ -948,13 +1082,12 @@ def chat():
         if results:
             answer = answer_with_ollama(effective_question, results, history)
 
-            if not answer:
-                top_text = results[0]["text"]
-                answer = clean_answer(top_text[:900])
+            if not answer or len(answer) < 80:
+                answer = clean_answer(results[0]["text"])
 
             return jsonify({
                 "answer": answer,
-                "sources": [r["file"] for r in results],
+                "sources": list(dict.fromkeys(r["file"] for r in results)),
                 "resources": []
             })
 
@@ -1062,7 +1195,7 @@ def chat():
 
     return jsonify({
         "answer": answer,
-        "sources": [r["file"] for r in results],
+       "sources": list(dict.fromkeys(r["file"] for r in results)),
         "resources": get_resources(question)
     })
 

@@ -118,6 +118,20 @@ def build_index():
         "text": "Prof Stephen Akandwanaho is a specialist in CBRN intelligent systems, artificial intelligence, and large language models. He holds a PhD in Computer Science (Artificial Intelligence) and is a Professor of Artificial Intelligence at Woxsen University in India. He also serves as the Executive Dean for the Faculty of Information Technology and Research at Richfield in South Africa. His work includes AI system design, intelligent decision-support systems, CBRN intelligence, digital transformation, and the application of advanced machine learning in higher education and national security contexts."
     })
 
+    docs.append({
+
+        "id": "internal_profile_1",
+
+        "file": "internal_profile",
+
+        "path": "manual_entry",
+
+        "chunk_index": 1,
+
+        "text": "AGABA ALLAN ATWINE is a highly experienced CBRN specialist based in Kampala, Uganda, with 6 years of service in CBRN defence and security, specialising in VVIP protection. He holds a Bachelor of Science in Chemical Engineering from Kyambogo University and a Post Graduate Certificate in Agro Based Process Designs from the Agro Business Incubation Network in Accra, Ghana. Since 2020, he has served in the CBRN Unit of the Special Forces Command in Entebbe, Uganda, where he has supported high-risk VVIP protection, operated mobile and confirmatory laboratories, led CBRN response operations, conducted risk assessments, trained junior personnel, and contributed to predictive algorithm development for regional threat detection. He has received advanced training in CBRN defence, mobile laboratory operations, and incident management, and was recognised as a top performer in both the Junior Commanders’ Commissioning Course and Basic Combat Training. His expertise includes CBRN threat assessment and mitigation, incident management, laboratory operations, emergency response, inter-agency coordination, and strategic planning."
+
+    })
+
     if not docs:
         raise ValueError("No documents/chunks found to index.")
 

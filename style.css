@@ -314,7 +314,7 @@ body {
     padding: 16px;
     box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
     display: flex;
-    gap: 14px;
+    gap: 12px;
     align-items: center;
 }
 
@@ -331,26 +331,49 @@ body {
     border-color: #111827;
 }
 
-.ask-btn {
+.ask-btn,
+.speak-btn {
     min-width: 110px;
     border: none;
-    background: #111827;
     color: white;
     border-radius: 16px;
     padding: 16px 20px;
     font-size: 16px;
     font-weight: 700;
     cursor: pointer;
+    height: 58px;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.ask-btn {
+    background: #111827;
 }
 
 .ask-btn.stop-mode {
     background: #991b1b;
 }
 
+.speak-btn {
+    background: #1f2a44;
+}
+
+.speak-btn:hover {
+    background: #162038;
+}
+
+.speak-btn.listening {
+    background: #b91c1c;
+}
+
 .empty-history {
     color: #94a3b8;
     font-size: 13px;
 }
+
+
 
 .welcome-text {
     max-width: 760px;
@@ -488,9 +511,10 @@ body {
         align-items: stretch;
     }
 
-    .ask-btn {
-        width: 100%;
-    }
+    .ask-btn,
+.speak-btn {
+    width: 100%;
+}
 }
 
 @media (max-width: 480px) {
@@ -571,3 +595,4 @@ body {
 .app-footer a:hover {
     text-decoration: underline;
 }
+

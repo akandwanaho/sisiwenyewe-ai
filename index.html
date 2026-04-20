@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sisiwenyewe | CBRN Intelligence Chatbot</title>
-    <link rel="stylesheet" href="style.css?v=2">
+    <link rel="stylesheet" href="style.css?v=4">
 </head>
 <body>
     <div class="app-shell">
@@ -41,16 +41,34 @@
             <section id="chat-box" class="chat-box">
                 <div class="welcome-card">
                     <div class="welcome-icon">🧠</div>
-
+            
                     <p class="welcome-text">
-                        Ask the CBRN bot anything from our CBRN knowledge base.
+                        Ask questions about CBRN threats, or analyze live sensor data and intelligence.
                     </p>
-
+            
                     <div class="prompt-chip-wrap">
-                        <button class="prompt-chip" onclick="fillPrompt('What is anthrax?')">What is anthrax?</button>
-                        <button class="prompt-chip" onclick="fillPrompt('Summarise biological agents')">Summarise biological agents</button>
-                        <button class="prompt-chip" onclick="fillPrompt('What does the respiratory protection handbook say?')">Respiratory protection handbook</button>
-                        <button class="prompt-chip" onclick="fillPrompt('Explain emergency response guidance')">Emergency response guidance</button>
+                        <!-- Knowledge prompts -->
+                        <button class="prompt-chip" onclick="fillPrompt('What is anthrax?')">
+                            What is anthrax?
+                        </button>
+            
+                        <button class="prompt-chip" onclick="fillPrompt('Summarise biological agents')">
+                            Summarise biological agents
+                        </button>
+            
+                        <!-- Live sensor data -->
+                        <button class="prompt-chip" onclick="fillPrompt('Show me the latest sensor data and current readings')">
+                            Live Sensor Data
+                        </button>
+            
+                        <button class="prompt-chip" onclick="fillPrompt('Give me a detailed analysis of the current sensor readings including risk level, trend, and anomaly detection')">
+                            AI Sensor Analysis
+                        </button>
+            
+                        <!-- Intelligence layer -->
+                        <button class="prompt-chip" onclick="fillPrompt('Generate a threat briefing based on the latest sensor data')">
+                            Threat Briefing
+                        </button>
                     </div>
                 </div>
             </section>
@@ -76,6 +94,7 @@
                     autocomplete="off"
                 />
                 <button id="ask-btn" class="ask-btn">Ask</button>
+                <button id="speak-btn" class="speak-btn" type="button">🎤 Speak</button>
             </div>
 
 
@@ -89,6 +108,6 @@
         </main>
     </div>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

@@ -93,13 +93,14 @@ function renderCurrentChat() {
             <div class="welcome-card">
                 <div class="welcome-icon">🧠</div>
                 <p class="welcome-text">
-                    Ask anything from our CBRN knowledge base.
+                    Ask questions about CBRN threats, or analyze live sensor data and intelligence.
                 </p>
                 <div class="prompt-chip-wrap">
                     <button class="prompt-chip" onclick="fillPrompt('What is anthrax?')">What is anthrax?</button>
-                    <button class="prompt-chip" onclick="fillPrompt('Summarise biological agents')">Biological agents</button>
-                    <button class="prompt-chip" onclick="fillPrompt('What does the respiratory protection handbook say?')">Respiratory protection</button>
-                    <button class="prompt-chip" onclick="fillPrompt('Explain emergency response guidance')">Emergency response</button>
+                    <button class="prompt-chip" onclick="fillPrompt('Summarise biological agents')">Summarise biological agents</button>
+                    <button class="prompt-chip" onclick="fillPrompt('Show me the latest sensor data and current readings')">Live Sensor Data</button>
+                    <button class="prompt-chip" onclick="fillPrompt('Give me a detailed analysis of the current sensor readings including risk level, trend, and anomaly detection')">AI Sensor Analysis</button>
+                    <button class="prompt-chip" onclick="fillPrompt('Generate a threat briefing based on the latest sensor data')">Threat Briefing</button>
                 </div>
             </div>
         `;
@@ -113,6 +114,7 @@ function renderCurrentChat() {
         chatBox.scrollTop = chatBox.scrollHeight;
     }
 }
+
 
 function addMessageToUI(role, text, animate = false) {
     const row = document.createElement("div");
@@ -337,3 +339,150 @@ if (chats.length === 0) {
 }
 
 updateAskButton();
+
+
+const speakBtn = document.getElementById("speak-btn");
+
+let recognition = null;
+let isListening = false;
+let finalTranscript = "";
+
+function initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+        console.log("Speech recognition not supported in this browser.");
+        return null;
+    }
+
+    const sr = new SpeechRecognition();
+
+    sr.lang = "en-US";
+    sr.interimResults = true;
+    sr.continuous = true;
+    sr.maxAlternatives = 1;
+
+    // ✅ START
+    sr.onstart = () => {
+        console.log("Speech recognition started");
+    
+        // 🔥 TEST MICROPHONE ACCESS
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(() => console.log("✅ Mic permission OK"))
+            .catch(err => console.log("❌ Mic permission error:", err));
+    
+        finalTranscript = "";
+        isListening = true;
+        updateSpeakButton();
+    };
+
+  // ✅ RESULT (live typing + debug)
+sr.onresult = (event) => {
+    console.log("🎤 Speech result received");
+
+    let interimTranscript = "";
+
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+        const transcriptPiece = event.results[i][0].transcript;
+        console.log("Piece:", transcriptPiece);
+
+        if (event.results[i].isFinal) {
+            finalTranscript += transcriptPiece + " ";
+        } else {
+            interimTranscript += transcriptPiece;
+        }
+    }
+
+    const fullText = (finalTranscript + interimTranscript).trim();
+    console.log("Full transcript:", fullText);
+
+    questionInput.value = fullText;
+    questionInput.focus();
+};
+
+
+// ✅ ERROR HANDLING (improved)
+sr.onerror = (event) => {
+    console.log("❌ Speech error:", event.error);
+
+    if (event.error === "not-allowed") {
+        alert("Microphone permission blocked. Allow mic access.");
+        isListening = false;
+    } 
+    else if (event.error === "audio-capture") {
+        alert("No microphone detected.");
+        isListening = false;
+    } 
+    else if (event.error === "no-speech") {
+        console.log("⚠️ No speech detected — still listening...");
+        return;
+    }
+    else if (event.error === "network") {
+        alert("Speech recognition service is currently unavailable. Please type your question instead.");
+        isListening = false;
+    }
+
+    updateSpeakButton();
+};
+
+    // ✅ CRITICAL FIX: KEEP LISTENING
+    sr.onend = () => {
+        console.log("Speech recognition ended");
+
+        if (!isListening) {
+            updateSpeakButton();
+            return;
+        }
+
+        // 🔥 auto-restart to prevent instant stop
+        try {
+            sr.start();
+        } catch (e) {
+            console.log("Restart error:", e);
+            isListening = false;
+            updateSpeakButton();
+        }
+    };
+
+    return sr;
+}
+
+function toggleSpeechInput() {
+    if (!recognition) {
+        recognition = initSpeechRecognition();
+    }
+
+    if (!recognition) {
+        alert("Speech input is not supported in this browser.");
+        return;
+    }
+
+    if (isListening) {
+        // ✅ manual stop
+        isListening = false;
+        recognition.stop();
+    } else {
+        questionInput.focus();
+
+        // 🔥 small delay prevents browser glitch
+        setTimeout(() => {
+            try {
+                recognition.start();
+            } catch (e) {
+                console.log("Start error:", e);
+            }
+        }, 200);
+    }
+}
+
+function updateSpeakButton() {
+    if (!speakBtn) return;
+
+    speakBtn.textContent = isListening ? "Listening..." : "Speak";
+    speakBtn.classList.toggle("listening", isListening);
+}
+
+// ✅ attach listener
+if (speakBtn) {
+    speakBtn.addEventListener("click", toggleSpeechInput);
+}

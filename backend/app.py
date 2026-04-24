@@ -396,6 +396,7 @@ def is_live_sensor_query(question: str) -> bool:
     live_terms = [
         "live sensor", "live sensors",
         "current sensor", "current sensors",
+        "sensor reading", "sensor readings",   # 🔴 CRITICAL FIX
         "current reading", "current readings",
         "recent sensor data", "sensor status",
         "latest sensor", "latest readings",
@@ -413,10 +414,11 @@ def is_live_sensor_query(question: str) -> bool:
     if any(term in q for term in live_terms):
         return True
 
-    if "device" in q and ("reading" in q or "status" in q or "online" in q):
+    # 🔴 Stronger fallback logic
+    if "sensor" in q and ("reading" in q or "readings" in q or "status" in q or "online" in q):
         return True
 
-    if "sensor" in q and ("latest" in q or "current" in q or "online" in q or "status" in q):
+    if "device" in q and ("reading" in q or "readings" in q or "status" in q or "online" in q):
         return True
 
     return False
@@ -520,10 +522,9 @@ OLLAMA_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434/api/generate")
 OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:3b")
 
 
-
 SENSOR_DB_HOST = os.getenv("SENSOR_DB_HOST", "192.168.5.125")
 SENSOR_DB_PORT = int(os.getenv("SENSOR_DB_PORT", "5435"))
-SENSOR_DB_NAME = os.getenv("SENSOR_DB_NAME", "cbrn_db")
+SENSOR_DB_NAME = os.getenv("SENSOR_DB_NAME", "postgres")
 SENSOR_DB_USER = os.getenv("SENSOR_DB_USER", "postgres")
 SENSOR_DB_PASSWORD = os.getenv("SENSOR_DB_PASSWORD")
 

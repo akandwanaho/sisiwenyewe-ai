@@ -1186,7 +1186,7 @@ def chat():
             answer = answer_with_ollama(effective_question, live_context, history)
 
             if not answer:
-                answer = analysis_context
+                answer = sensor_summary_from_rows(rows)
 
             return jsonify({
                 "answer": answer,

@@ -1182,7 +1182,21 @@ def chat():
             answer = answer_with_ollama(effective_question, live_context, history)
 
             if not answer:
-                answer = sensor_context
+                 analysis = build_sensor_analysis(rows)
+                 location = analysis.get("location")
+                 if isinstance(location, dict):
+                      location = location.get("name", json.dumps(location))
+
+                 answer = (
+        f"Latest live sensor readings show device {analysis.get('device')} online at {location}. "
+        f"The latest dose rate is {analysis.get('latest_dose_rate')} and the latest count rate is {analysis.get('latest_count_rate')}. "
+        f"Across the latest readings, the trend appears {analysis.get('trend')} with a preliminary risk level of {analysis.get('risk_level')}. "
+        f"No anomaly is indicated in the latest sample." if not analysis.get("anomaly") else
+        f"Latest live sensor readings show device {analysis.get('device')} online at {location}. "
+        f"The latest dose rate is {analysis.get('latest_dose_rate')} and the latest count rate is {analysis.get('latest_count_rate')}. "
+        f"Across the latest readings, the trend appears {analysis.get('trend')} with a preliminary risk level of {analysis.get('risk_level')}. "
+        f"An anomaly is indicated and should be reviewed."
+    )
 
             return jsonify({
                 "answer": answer,

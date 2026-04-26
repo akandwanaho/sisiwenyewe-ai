@@ -1148,7 +1148,7 @@ def chat():
             answer = answer_with_ollama(effective_question, live_context, history)
 
             if not answer:
-                answer = "I could not generate a detailed analysis from the current sensor data."
+                answer = analysis_context
 
             return jsonify({
                 "answer": answer,
@@ -1182,7 +1182,7 @@ def chat():
             answer = answer_with_ollama(effective_question, live_context, history)
 
             if not answer:
-                answer = "I could not generate a live analysis from the current sensor data."
+                answer = sensor_context
 
             return jsonify({
                 "answer": answer,

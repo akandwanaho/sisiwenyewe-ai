@@ -1328,19 +1328,24 @@ def chat():
 
 
 # Strong RAG
+    # Strong RAG
     answer = answer_with_ollama(effective_question, results, history)
 
     if not answer:
-        context_text = clean_answer(results[0]["text"])
-    answer = (
-        f"Based on the available CBRN reference material, {context_text[:500]}"
-    )
+        answer = answer_general(effective_question, history)
+
+    if not answer:
+        return jsonify({
+            "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
+            "sources": list(dict.fromkeys(r["file"] for r in results)),
+            "resources": get_resources(question)
+        })
 
     return jsonify({
-    "answer": answer,
-    "sources": list(dict.fromkeys(r["file"] for r in results)),
-    "resources": get_resources(question)
-})
+        "answer": answer,
+        "sources": list(dict.fromkeys(r["file"] for r in results)),
+        "resources": get_resources(question)
+    })
 
 if __name__ == "__main__":
     print("Loading RAG assets for server startup...")

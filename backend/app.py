@@ -1330,8 +1330,10 @@ def chat():
     answer = answer_with_ollama(effective_question, results, history)
 
     if not answer:
-        top_text = results[0]["text"]
-        answer = clean_answer(top_text[:350])
+        answer = answer_with_ollama(effective_question, results[:1], history)
+
+    if not answer:
+        answer = "I do not have sufficient confirmed information to provide a reliable answer."
 
     return jsonify({
         "answer": answer,

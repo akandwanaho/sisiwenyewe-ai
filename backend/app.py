@@ -439,7 +439,11 @@ def is_live_sensor_analysis_query(question: str) -> bool:
         "is there any danger",
         "is it safe",
         "what does this mean",
-        "detailed analysis"
+        "detailed analysis",
+         "safe", "danger", "issue", "problem",
+         "abnormal", "unusual", "spike",
+          "concerning", "okay", "normal",
+          "what's happening", "status"
     ]
 
     sensor_terms = [
@@ -1089,6 +1093,27 @@ def search_documents_filtered(query: str, file_filter: str, top_k=TOP_K):
     return filtered[:top_k]
 
 
+
+def sensor_summary_from_rows(rows):
+    analysis = build_sensor_analysis(rows)
+    location = analysis.get("location")
+
+    if isinstance(location, dict):
+        location = location.get("name", json.dumps(location))
+
+    anomaly_text = (
+        "An anomaly is indicated and should be reviewed."
+        if analysis.get("anomaly")
+        else "No anomaly is indicated in the latest sample."
+    )
+
+    return (
+        f"Latest live sensor readings show device {analysis.get('device')} online at {location}. "
+        f"The latest dose rate is {analysis.get('latest_dose_rate')} and the latest count rate is {analysis.get('latest_count_rate')}. "
+        f"Across the latest readings, the trend appears {analysis.get('trend')} with a preliminary risk level of {analysis.get('risk_level')}. "
+        f"{anomaly_text}"
+    )
+
     
 @app.route("/chat", methods=["POST"])
 def chat():
@@ -1129,6 +1154,19 @@ def chat():
     # Rewrite follow-up questions
     effective_question = rewrite_with_history(question, history)
     print("Effective question:", effective_question)
+
+    sensor_intent_terms = [
+        "sensor", "sensors", "radiation", "dose", "dose rate",
+         "count rate", "device", "summit view", "reading", "readings",
+         "safe", "danger", "normal", "abnormal", "spike", "risk",
+         "threat", "status", "online"
+]
+
+    if any(term in effective_question.lower() for term in sensor_intent_terms): 
+      if not is_live_sensor_query(effective_question) and not is_live_sensor_analysis_query(effective_question):
+        effective_question = effective_question + " sensor readings"
+
+
 
         # Live sensor analysis queries
     if is_live_sensor_analysis_query(effective_question):
@@ -1182,28 +1220,15 @@ def chat():
             answer = answer_with_ollama(effective_question, live_context, history)
 
             if not answer:
-                 analysis = build_sensor_analysis(rows)
-                 location = analysis.get("location")
-                 if isinstance(location, dict):
-                      location = location.get("name", json.dumps(location))
-
-                 answer = (
-        f"Latest live sensor readings show device {analysis.get('device')} online at {location}. "
-        f"The latest dose rate is {analysis.get('latest_dose_rate')} and the latest count rate is {analysis.get('latest_count_rate')}. "
-        f"Across the latest readings, the trend appears {analysis.get('trend')} with a preliminary risk level of {analysis.get('risk_level')}. "
-        f"No anomaly is indicated in the latest sample." if not analysis.get("anomaly") else
-        f"Latest live sensor readings show device {analysis.get('device')} online at {location}. "
-        f"The latest dose rate is {analysis.get('latest_dose_rate')} and the latest count rate is {analysis.get('latest_count_rate')}. "
-        f"Across the latest readings, the trend appears {analysis.get('trend')} with a preliminary risk level of {analysis.get('risk_level')}. "
-        f"An anomaly is indicated and should be reviewed."
-    )
+                answer = sensor_summary_from_rows(rows)
 
             return jsonify({
-                "answer": answer,
-                "sources": ["live_sensor_data"],
-                "resources": []
-            })
+    "answer": answer,
+    "sources": ["live_sensor_data"],
+    "resources": []
+})
 
+           
         except Exception as e:
             print(f"Live sensor DB error: {e}")
             return jsonify({

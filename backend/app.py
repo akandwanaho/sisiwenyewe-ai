@@ -533,7 +533,7 @@ SENSOR_DB_USER = os.getenv("SENSOR_DB_USER", "postgres")
 SENSOR_DB_PASSWORD = os.getenv("SENSOR_DB_PASSWORD")
 
 
-TOP_K = 2
+TOP_K = 4
 
 index = None
 documents = None
@@ -654,7 +654,8 @@ def search_documents(query: str, top_k=TOP_K):
             "score": float(score),
             "file": doc["file"],
             "text": doc["text"],
-            "chunk_index": doc["chunk_index"]
+            "chunk_index": doc["chunk_index"],
+            "page": doc.get("page")
         })
 
     return results
@@ -1238,22 +1239,53 @@ def chat():
             })
 
 
-    # Vague questions
+       # Vague questions
     if is_vague_question(question, history):
         clarification = clarification_with_ollama(question, history)
+
         return jsonify({
             "answer": clarification,
             "sources": [],
             "resources": []
         })
 
+    # Internal profile questions
+    if is_profile_query(effective_question):
+        print("Internal profile query detected.")
+
+        profile_results = search_profile_documents(
+            effective_question,
+            top_k=4
+        )
+
+        if profile_results:
+            answer = answer_with_ollama(
+                effective_question,
+                profile_results,
+                history
+            )
+
+            if answer:
+                return jsonify({
+                    "answer": answer,
+                    "sources": ["internal_profile"],
+                    "resources": []
+                })
+
     # Current office queries
     if is_current_office_query(effective_question):
-        answer = answer_general(effective_question, history)
+        answer = answer_general(
+            effective_question,
+            history
+        )
 
         if not answer:
             return jsonify({
-                "answer": "I do not currently have confirmed live information for that office-holder query. Please consult an official or trusted current source.",
+                "answer": (
+                    "I do not currently have confirmed live information "
+                    "for that office-holder query. Please consult an "
+                    "official or trusted current source."
+                ),
                 "sources": [],
                 "resources": []
             })
@@ -1264,88 +1296,62 @@ def chat():
             "resources": []
         })
 
-    # General queries (non-CBRN)
-    if not is_cbrn_query(effective_question):
-        print("General query detected — using general model.")
+    # Search the internal knowledge base first
+    print("Searching internal knowledge base.")
 
-        answer = answer_general(effective_question, history)
+    results = search_documents(
+        effective_question,
+        top_k=TOP_K
+    )
 
-        if not answer:
+    top_score = results[0]["score"] if results else 0.0
+    print(f"Top retrieval score: {top_score:.4f}")
+
+    # Use RAG when the retrieved material is sufficiently relevant
+    if results and top_score >= 0.35:
+        print("Relevant internal material found — using RAG.")
+
+        answer = answer_with_ollama(
+            effective_question,
+            results,
+            history
+        )
+
+        if answer:
             return jsonify({
-                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
-                "sources": [],
-                "resources": []
-            })
-
-        return jsonify({
-            "answer": answer,
-            "sources": [],
-            "resources": []
-        })
-
-    # CBRN queries (RAG)
-    results = search_documents(effective_question, top_k=TOP_K)
-
-    if not results:
-        print("No retrieval results — using fallback.")
-
-        answer = answer_with_ollama(effective_question, [], history)
-
-        if not answer:
-            return jsonify({
-                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
-                "sources": [],
+                "answer": answer,
+                "sources": list(
+                    dict.fromkeys(
+                        result["file"] for result in results
+                    )
+                ),
                 "resources": get_resources(question)
             })
 
-        return jsonify({
-            "answer": answer,
-            "sources": [],
-            "resources": get_resources(question)
-        })
+    # No sufficiently relevant internal material
+    print("No sufficiently relevant internal material — using general model.")
 
-    top_score = results[0]["score"]
-    print(f"Top score: {top_score:.4f}")
-
-    # Weak RAG → fallback to general
-    if top_score < 0.20:
-        print("Low RAG score — using general model.")
-
-        answer = answer_general(effective_question, history)
-
-        if not answer:
-            return jsonify({
-                "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
-                "sources": [],
-                "resources": get_resources(question)
-            })
-
-        return jsonify({
-            "answer": answer,
-            "sources": [],
-            "resources": get_resources(question)
-        })
-
-
-# Strong RAG
-    # Strong RAG
-    answer = answer_with_ollama(effective_question, results, history)
-
-    if not answer:
-        answer = answer_general(effective_question, history)
+    answer = answer_general(
+        effective_question,
+        history
+    )
 
     if not answer:
         return jsonify({
-            "answer": "I do not have sufficient confirmed information to provide a reliable answer.",
-            "sources": list(dict.fromkeys(r["file"] for r in results)),
+            "answer": (
+                "I do not have sufficient confirmed information "
+                "to provide a reliable answer."
+            ),
+            "sources": [],
             "resources": get_resources(question)
         })
 
     return jsonify({
         "answer": answer,
-        "sources": list(dict.fromkeys(r["file"] for r in results)),
+        "sources": [],
         "resources": get_resources(question)
     })
+
 
 if __name__ == "__main__":
     print("Loading RAG assets for server startup...")

@@ -88,7 +88,7 @@ function renderHistory() {
     var g = groupOf(c.updatedAt || c.createdAt);
     if (g !== last) { historyEl.appendChild(el("div", "grp", g)); last = g; }
     var item = el("div", "h-item" + (c.id === currentId ? " on" : ""));
-    var t = el("button", "t", c.messages.length ? c.title : "New assessment"); t.type = "button"; t.title = c.title;
+    var t = el("button", "t", c.messages.length ? c.title : "New conversation"); t.type = "button"; t.title = c.title;
     t.addEventListener("click", function () { currentId = c.id; renderHistory(); renderThread(); closeSide(); });
     var del = el("button", "del"); del.type = "button"; del.setAttribute("aria-label", "Delete conversation"); del.appendChild(svg(IC.trash, 14));
     del.addEventListener("click", function (e) { e.stopPropagation(); removeChat(c.id); });
@@ -133,7 +133,7 @@ function welcome() {
   var w = el("div", "welcome");
   var hero = el("div", "hero"), r = el("div", "radar"); r.innerHTML = radarSvg(); hero.appendChild(r);
   var txt = el("div"); var h = el("h2"); h.innerHTML = 'Sovereign intelligence for <span>CBRN threats</span>.'; txt.appendChild(h);
-  txt.appendChild(el("p", null, "Ask about chemical, biological, radiological and nuclear agents, response protocols and protection, or get an assessment from the live sensor network."));
+  txt.appendChild(el("p", null, "Ask about chemical, biological, radiological and nuclear agents, response protocols and protection, or check the live sensor network."));
   hero.appendChild(txt); w.appendChild(hero);
   w.appendChild(el("div", "eyebrow", "KNOWLEDGE DOMAINS"));
   var g = el("div", "domains");
@@ -225,8 +225,8 @@ function renderThread() {
 function thinking(isSensor) {
   var row = el("div", "msg bot"), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
   var box = el("div", "think"), ring = el("div", "think-ring"), t = el("div"), b = el("b"), sm = el("small"), st = el("div", "steps");
-  var stages = isSensor ? ["Connecting to the sensor network", "Reading the latest measurements", "Checking risk level and trend", "Writing the assessment"]
-                        : ["Understanding the question", "Searching the CBRN knowledge base", "Cross-checking sources", "Writing the assessment"];
+  var stages = isSensor ? ["Connecting to the sensor network", "Reading the latest measurements", "Checking risk level and trend", "Writing the answer"]
+                        : ["Understanding the question", "Searching the CBRN knowledge base", "Cross-checking sources", "Writing the answer"];
   stages.forEach(function () { st.appendChild(el("i")); });
   t.appendChild(b); t.appendChild(sm); t.appendChild(st); box.appendChild(ring); box.appendChild(t); row.appendChild(box);
   var t0 = Date.now(), k = -1;

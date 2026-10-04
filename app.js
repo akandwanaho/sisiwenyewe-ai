@@ -358,7 +358,7 @@ micBtn.addEventListener("click", function () {
 });
 
 /* ---------- boot ---------- */
-if (window.matchMedia && matchMedia('(max-width: 860px)').matches) q.placeholder = 'Ask a CBRN question…';
+if (window.matchMedia && matchMedia('(max-width: 860px)').matches) q.placeholder = 'Ask Sisiwenyewe anything…';
 if (!chats.length || !chats[0].messages.length) newChat(false);
 else { currentId = chats[0].id; renderHistory(); renderThread(); }
 var startEmpty = current(); if (startEmpty && startEmpty.messages.length) newChat(false);

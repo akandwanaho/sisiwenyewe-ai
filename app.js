@@ -203,7 +203,7 @@ function botMsg(m, idx, animate) {
     extras.style.display = "none"; ans.classList.add("caret");
     var words = m.text.split(/(\s+)/), i = 0, step = Math.max(1, Math.ceil(words.length / 90));
     var timer = setInterval(function () {
-      i += step; ans.innerHTML = renderMd(words.slice(0, i).join(""));
+      i = document.hidden ? words.length : i + step; ans.innerHTML = renderMd(words.slice(0, i).join(""));
       stick();
       if (i >= words.length) { clearInterval(timer); ans.classList.remove("caret"); ans.innerHTML = renderMd(m.text); extras.style.display = ""; stick(); }
     }, 22);

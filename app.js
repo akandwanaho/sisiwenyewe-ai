@@ -281,8 +281,8 @@ function riskOf(text) { var t = text || "", m = /\b(high|moderate|low)[\s-]+(?:r
 function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } }
 
 function userMsg(m) { var row = el("div", "msg user"); row.appendChild(el("div", "bubble", m.text)); return row; }
-function authMsg(m, idx) {
-  var row = el("div", "msg bot"), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
+function authMsg(m, idx, animate) {
+  var row = el("div", "msg bot" + (animate ? " lock-fresh" : "")), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
   var body = el("div", "bot-body"), meta = el("div", "bot-meta");
   meta.appendChild(el("b", null, "SISIWENYEWE")); meta.appendChild(el("span", null, timeStr(m.at)));
   var tg = el("span", "tag restricted"); tg.appendChild(svg(IC.lock, 11)); tg.appendChild(document.createTextNode("RESTRICTED")); meta.appendChild(tg);
@@ -297,7 +297,7 @@ function authMsg(m, idx) {
   row.appendChild(body); return row;
 }
 function botMsg(m, idx, animate) {
-  if (m.kind === "auth") return authMsg(m, idx);
+  if (m.kind === "auth") return authMsg(m, idx, animate);
   var row = el("div", "msg bot" + (m.redacted ? " redacted" : "")), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
   var body = el("div", "bot-body"), meta = el("div", "bot-meta");
   meta.appendChild(el("b", null, "SISIWENYEWE")); meta.appendChild(el("span", null, timeStr(m.at)));
@@ -397,7 +397,7 @@ function send(retryText) {
     .then(function (data) {
       if (data && data.auth_required) {
         if (auth) { auth = null; storeAuth(); hideRestricted(); renderAccess(); }
-        finish(chatRef, th, { role: "bot", kind: "auth", text: data.answer, at: new Date().toISOString() });
+        clearance(th, function () { finish(chatRef, th, { role: "bot", kind: "auth", text: data.answer, at: new Date().toISOString() }); });
         return;
       }
       var m = { role: "bot", text: (data && data.answer) || FALLBACK, sources: (data && data.sources) || [], resources: (data && data.resources) || [], restricted: !!(data && data.restricted), at: new Date().toISOString(), ms: Date.now() - t0 };
@@ -407,6 +407,24 @@ function send(retryText) {
       if (err && err.name === "AbortError") { clearInterval(thinkTimer); th.remove(); setBusy(false); toast("Stopped."); return; }
       finish(chatRef, th, { role: "bot", text: FALLBACK, sources: [], resources: [], at: new Date().toISOString(), ms: Date.now() - t0 });
     });
+}
+/* Security-check sequence shown before the sign-in card, so restricted questions get the same live feel as answers. */
+function clearance(th, done) {
+  clearInterval(thinkTimer);
+  var box = th.querySelector(".think"); if (!box) { done(); return; }
+  var b = box.querySelector("b"), sm = box.querySelector("small"), st = box.querySelector(".steps");
+  var stages = ["Classifying the information", "Checking your access clearance", "Restricted \u00b7 clearance required"];
+  st.innerHTML = ""; stages.forEach(function () { st.appendChild(el("i")); });
+  box.classList.add("clearance");
+  var k = 0, gap = reduce ? 0 : 750;
+  (function step() {
+    var last = k === stages.length - 1;
+    b.textContent = stages[k] + (last ? "" : "\u2026");
+    sm.textContent = last ? "AUTHORISED PERSONNEL ONLY" : "SECURITY CHECK \u00b7 STEP " + (k + 1) + " OF " + stages.length;
+    [].forEach.call(st.children, function (x, j) { x.classList.toggle("on", j <= k); });
+    if (last) { box.classList.add("denied"); var rg = box.querySelector(".think-ring"); if (rg) rg.appendChild(svg(IC.lock, 14)); setTimeout(done, reduce ? 0 : 900); return; }
+    k++; setTimeout(step, gap);
+  })();
 }
 function finish(c, th, m) {
   clearInterval(thinkTimer); setBusy(false);

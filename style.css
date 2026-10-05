@@ -148,6 +148,26 @@ kbd{font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid var(--
 .steps{display:flex;gap:4px;margin-top:6px}
 .steps i{width:18px;height:3px;border-radius:2px;background:var(--line3);transition:background .4s}
 .steps i.on{background:var(--gold)}
+/* security check before restricted content */
+.think.clearance{border-color:#3A2626;transition:border-color .4s,background .4s}
+.think.clearance .think-ring::before{border-top-color:#FF9B8F}
+.think.clearance .steps i{width:30px}
+.think.clearance .steps i.on{background:#FF9B8F;box-shadow:0 0 8px rgba(255,107,91,.45)}
+.think.clearance small{color:#C98A82;letter-spacing:.12em}
+.think.denied{border-color:#5A2A2A;background:#170E0F}
+.think.denied b{color:#FF9B8F}
+.think.denied .think-ring::after{display:none}
+.think-ring svg{position:absolute;left:8px;top:7px;color:#FF9B8F;animation:shut .5s cubic-bezier(.3,1.6,.5,1) .1s both}
+.think.denied .think-ring::before{border:2px solid #FF9B8F;animation:deny .9s ease-out both}
+@keyframes deny{0%{transform:scale(.6);opacity:.3;box-shadow:0 0 0 0 rgba(255,107,91,.6)}60%{transform:scale(1);opacity:1;box-shadow:0 0 0 10px rgba(255,107,91,0)}100%{transform:scale(1);box-shadow:0 0 0 0 rgba(255,107,91,0)}}
+.lock-fresh .tag.restricted{animation:rise .35s ease both}
+.lock-fresh .lock-card{position:relative;overflow:hidden;animation:lockIn .55s cubic-bezier(.2,.8,.2,1) both}
+.lock-fresh .lock-card::after{content:"";position:absolute;left:0;right:0;top:0;height:45%;pointer-events:none;background:linear-gradient(180deg,transparent,rgba(255,107,91,.12),transparent);transform:translateY(-110%);animation:scan 1.5s ease-out .25s both}
+.lock-fresh .lock-h svg{animation:shut .6s cubic-bezier(.3,1.6,.5,1) .15s both}
+@keyframes lockIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes scan{to{transform:translateY(240%)}}
+@keyframes shut{from{transform:translateY(-4px) scale(1.3);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion: reduce){.lock-fresh .lock-card,.lock-fresh .lock-card::after,.lock-fresh .lock-h svg,.think.denied .think-ring::before{animation:none}.lock-fresh .lock-card::after{display:none}}
 .err{border:1px solid #4A1E1E;background:#160D0D;border-radius:12px;padding:12px 14px;color:#FFC9C2;font-size:14px}
 
 /* ---------- composer ---------- */

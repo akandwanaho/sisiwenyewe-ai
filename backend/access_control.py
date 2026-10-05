@@ -112,6 +112,16 @@ def normalise_sn(sn: str) -> str:
     return re.sub(r"\s+", "", (sn or "")).upper()
 
 
+def resolve_sn(raw: str) -> str:
+    """Accept the full service number (RO/14249) or just its digits (14249)
+    when exactly one person on the list has that number."""
+    sn = normalise_sn(raw)
+    if not sn or "/" in sn:
+        return sn
+    matches = [k for k in load_users() if k.split("/", 1)[-1] == sn]
+    return matches[0] if len(matches) == 1 else sn
+
+
 @contextmanager
 def _locked_users(write=False):
     AUTH_DIR.mkdir(parents=True, exist_ok=True)
@@ -236,7 +246,7 @@ def _err(msg, code=400, **extra):
 @bp.route("/login", methods=["POST"])
 def login():
     d = request.get_json(silent=True) or {}
-    sn = normalise_sn(d.get("service_no"))
+    sn = resolve_sn(d.get("service_no"))
     pin = str(d.get("pin") or "").strip()
     if not sn or not pin:
         return _err("Enter your service number and PIN.")

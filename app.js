@@ -425,7 +425,8 @@ form.addEventListener("submit", function (e) { e.preventDefault(); if (busy) { i
 q.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) send(); } });
 function autosize() { q.style.height = "auto"; q.style.height = Math.min(180, q.scrollHeight) + "px"; updateSend(); }
 q.addEventListener("input", autosize);
-document.addEventListener("keydown", function (e) { if (e.key === "/" && document.activeElement !== q && document.activeElement !== searchEl) { e.preventDefault(); q.focus(); } if (e.key === "Escape") { closeSide(); closeSignIn(); } });
+document.addEventListener("keydown", function (e) { var ae = document.activeElement, typing = ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable);
+  if (e.key === "/" && !typing) { e.preventDefault(); q.focus(); } if (e.key === "Escape") { closeSide(); closeSignIn(); } });
 
 /* ---------- actions ---------- */
 function copyText(t, b) {

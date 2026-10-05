@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=5">
+<link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
 <div class="app" id="app">
@@ -39,6 +39,7 @@
     <nav id="history" class="history" aria-label="Recent conversations"></nav>
 
     <div class="side-foot">
+      <div id="access" class="access" aria-live="polite"></div>
       <div class="sys">
         <div class="sys-row"><span>Model</span><b id="sysState" class="state"><i></i>Checking…</b></div>
         <div class="sys-row"><span>Knowledge base</span><b>CBRN library · Blue Book</b></div>
@@ -92,7 +93,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <div id="print" class="print-doc" aria-hidden="true"></div>
+<div class="auth-modal" id="authModal" hidden><div class="auth-box" id="authBox" role="dialog" aria-modal="true" aria-label="Sign in"></div></div>
 
-<script src="app.js?v=5"></script>
+<script src="app.js?v=6"></script>
 </body>
 </html>

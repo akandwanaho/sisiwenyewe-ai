@@ -1,1 +1,6 @@
 .env
+
+# access control: never commit personnel data, PINs or logs
+auth/
+logs/
+*.xlsx

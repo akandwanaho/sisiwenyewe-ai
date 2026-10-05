@@ -24,7 +24,9 @@ var IC = {
   trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
   sensor: '<circle cx="12" cy="12" r="2"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.6 5.6a9 9 0 0 0 0 12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
   shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
-  brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>'
+  brief: '<rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/>',
+  lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>'
 };
 var MARK = '<svg viewBox="0 0 32 32" width="20" height="20"><circle cx="16" cy="16" r="3" fill="#F5C518"/><path d="M16 4a12 12 0 0 1 10.4 6l-6.9 4a4 4 0 0 0-3.5-2zM26.4 22a12 12 0 0 1-20.8 0l6.9-4a4 4 0 0 0 7 0zM5.6 10A12 12 0 0 1 16 4v8a4 4 0 0 0-3.5 2z" fill="#F5C518"/></svg>';
 function toast(msg) { var t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(function () { t.classList.remove("on"); }, 3200); }
@@ -55,7 +57,117 @@ var chats = [];
 try { chats = JSON.parse(localStorage.getItem(STORE)) || []; } catch (e) { chats = []; }
 chats = chats.filter(function (c) { return c && c.id && Array.isArray(c.messages); });
 var currentId = null, busy = false, controller = null, thinkTimer = null;
-function save() { try { localStorage.setItem(STORE, JSON.stringify(chats)); } catch (e) {} }
+/* Restricted answers are never written to browser storage. */
+var REDACTED = "Restricted answer hidden. Sign in and ask again to view it.";
+function redact(m) { return { role: m.role, text: REDACTED, restricted: true, redacted: true, at: m.at }; }
+function save() {
+  try {
+    localStorage.setItem(STORE, JSON.stringify(chats.map(function (c) {
+      return { id: c.id, title: c.title, createdAt: c.createdAt, updatedAt: c.updatedAt,
+        messages: c.messages.filter(function (m) { return m.kind !== "auth"; }).map(function (m) { return m.restricted && !m.redacted ? redact(m) : m; }) };
+    })));
+  } catch (e) {}
+}
+
+/* ---------- access (sign-in for restricted intelligence) ---------- */
+var AUTH_KEY = "sisiwenyewe_auth", IDLE_MS = 30 * 60 * 1000, auth = null, lastActive = Date.now();
+try { auth = JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch (e) { auth = null; }
+if (!auth || !auth.token || !auth.exp || auth.exp < Date.now()) auth = null;
+function storeAuth() { try { if (auth) sessionStorage.setItem(AUTH_KEY, JSON.stringify(auth)); else sessionStorage.removeItem(AUTH_KEY); } catch (e) {} }
+function headers() { var h = { "Content-Type": "application/json" }; if (auth) h.Authorization = "Bearer " + auth.token; return h; }
+function whoName(u) { if (!u) return ""; var n = (u.name || "").split(/\s+/); return (u.rank ? u.rank + " " : "") + (n.length > 1 ? n[0].charAt(0) + ". " + n.slice(1).join(" ") : (u.name || u.service_no)); }
+function signedIn(data) {
+  auth = { token: data.token, user: data.user, exp: Date.now() + (data.expires_in || 28800) * 1000 }; lastActive = Date.now();
+  storeAuth(); renderAccess(); toast("Signed in as " + whoName(data.user) + ".");
+}
+function hideRestricted() {
+  chats.forEach(function (c) { c.messages.forEach(function (m, i) { if (m.restricted && !m.redacted) c.messages[i] = redact(m); }); });
+}
+function signOut(reason) {
+  if (auth) { try { fetch(API + "/auth/logout", { method: "POST", headers: headers() }); } catch (e) {} }
+  auth = null; storeAuth(); hideRestricted(); save(); renderAccess(); renderThread();
+  toast(reason || "Signed out. Restricted answers are hidden.");
+}
+function apiPost(path, body, tok) {
+  var h = { "Content-Type": "application/json" }; if (tok) h.Authorization = "Bearer " + tok;
+  return fetch(API + path, { method: "POST", headers: h, body: JSON.stringify(body || {}) })
+    .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { d._status = r.status; return d; }); });
+}
+function authForm(onDone) {
+  var f = el("form", "lock-form"); f.noValidate = true;
+  var err = el("p", "lock-err"); err.setAttribute("role", "alert");
+  function field(label, type, name, ac, mode) {
+    var w = el("label", "lock-field"); w.appendChild(el("span", null, label));
+    var i = el("input"); i.type = type; i.name = name; i.autocomplete = ac; i.required = true; i.spellcheck = false; if (mode) i.inputMode = mode; w.appendChild(i); return { w: w, i: i };
+  }
+  var sn = field("Service number", "text", "username", "username"), pin = field("PIN", "password", "password", "current-password", "numeric");
+  sn.i.placeholder = "e.g. RO/12345"; sn.i.autocapitalize = "characters";
+  var btn = el("button", "lock-btn", "Sign in"); btn.type = "submit";
+  var row = el("div", "lock-row"); row.appendChild(sn.w); row.appendChild(pin.w); f.appendChild(row); f.appendChild(btn); f.appendChild(err);
+  var stage = "login", pcToken = null, pinNew, pinConfirm;
+  function busyBtn(v, label) { btn.disabled = v; btn.textContent = v ? "Checking…" : label; }
+  f.addEventListener("submit", function (e) {
+    e.preventDefault(); err.textContent = "";
+    if (stage === "login") {
+      if (!sn.i.value.trim() || !pin.i.value.trim()) { err.textContent = "Enter your service number and PIN."; return; }
+      busyBtn(true, "Sign in");
+      apiPost("/auth/login", { service_no: sn.i.value, pin: pin.i.value }).then(function (d) {
+        busyBtn(false, "Sign in"); pin.i.value = "";
+        if (!d.ok) { err.textContent = d.error || "Sign-in failed. Try again."; pin.i.focus(); return; }
+        if (d.must_change_pin) {
+          stage = "change"; pcToken = d.token; row.innerHTML = "";
+          f.insertBefore(el("p", "lock-note", "Welcome, " + whoName(d.user) + ". This was a one-time PIN. Set your own 6–12 digit PIN to continue."), row);
+          pinNew = field("New PIN", "password", "new-password", "new-password", "numeric"); pinConfirm = field("Confirm new PIN", "password", "confirm-password", "new-password", "numeric");
+          row.appendChild(pinNew.w); row.appendChild(pinConfirm.w); btn.textContent = "Set PIN and continue"; pinNew.i.focus(); return;
+        }
+        signedIn(d); onDone();
+      }).catch(function () { busyBtn(false, "Sign in"); err.textContent = "Cannot reach the server. Check your connection."; });
+    } else {
+      if (pinNew.i.value !== pinConfirm.i.value) { err.textContent = "The two PINs do not match."; return; }
+      busyBtn(true, "Set PIN and continue");
+      apiPost("/auth/change-pin", { new_pin: pinNew.i.value }, pcToken).then(function (d) {
+        busyBtn(false, "Set PIN and continue");
+        if (!d.ok) { err.textContent = d.error || "Could not set the PIN."; if (d._status === 401) { stage = "login"; } return; }
+        pinNew.i.value = pinConfirm.i.value = ""; signedIn(d); onDone();
+      }).catch(function () { busyBtn(false, "Set PIN and continue"); err.textContent = "Cannot reach the server. Check your connection."; });
+    }
+  });
+  setTimeout(function () { if (document.activeElement === document.body || document.activeElement === q) sn.i.focus(); }, 60);
+  return f;
+}
+function lockCard(text, onDone) {
+  var card = el("div", "lock-card"), h = el("div", "lock-h"); h.appendChild(svg(IC.lock, 16)); h.appendChild(el("b", null, "Restricted information"));
+  card.appendChild(h); card.appendChild(el("p", "lock-msg", text || "This information is restricted to authorised Sisiwenyewe personnel."));
+  card.appendChild(authForm(onDone));
+  card.appendChild(el("small", "lock-foot", "Authorised personnel only. Every access is logged. Never share your PIN."));
+  return card;
+}
+function openSignIn() {
+  var m = $("#authModal"), box = $("#authBox"); box.innerHTML = "";
+  var x = el("button", "icon-btn lock-x"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+  x.addEventListener("click", closeSignIn); box.appendChild(x);
+  box.appendChild(lockCard("Sign in with your service number and PIN to access restricted intelligence and the live sensor network.", closeSignIn));
+  m.hidden = false; closeSide();
+}
+function closeSignIn() { $("#authModal").hidden = true; }
+function renderAccess() {
+  var a = $("#access"); if (!a) return; a.innerHTML = "";
+  var ic = el("span", "acc-ic"); ic.appendChild(svg(auth ? IC.shield : IC.lock, 15)); a.appendChild(ic);
+  var t = el("span", "acc-t");
+  t.appendChild(el("b", null, auth ? "AUTHORISED" : "PUBLIC ACCESS"));
+  t.appendChild(el("small", null, auth ? whoName(auth.user) : "Restricted items need sign-in"));
+  a.appendChild(t);
+  var b = el("button", "acc-btn", auth ? "Sign out" : "Sign in"); b.type = "button";
+  b.addEventListener("click", function () { if (auth) signOut(); else openSignIn(); });
+  a.appendChild(b); a.classList.toggle("on", !!auth);
+  var w = thread && thread.querySelector(".welcome"); if (w) renderThread();
+}
+["click", "keydown", "touchstart"].forEach(function (ev) { document.addEventListener(ev, function () { lastActive = Date.now(); }, { passive: true }); });
+setInterval(function () {
+  if (!auth) return;
+  if (auth.exp < Date.now()) signOut("Your session has ended. Sign in again for restricted information.");
+  else if (Date.now() - lastActive > IDLE_MS) signOut("Signed out after 30 minutes of inactivity.");
+}, 30000);
 function current() { return chats.filter(function (c) { return c.id === currentId; })[0]; }
 function newChat(focus) {
   var existing = chats.filter(function (c) { return !c.messages.length; })[0];
@@ -145,7 +257,7 @@ function welcome() {
     g.appendChild(c);
   });
   w.appendChild(g);
-  var e2 = el("div", "eyebrow"); e2.style.marginTop = "22px"; e2.textContent = "LIVE SENSOR INTELLIGENCE"; w.appendChild(e2);
+  var e2 = el("div", "eyebrow"); e2.style.marginTop = "22px"; e2.textContent = "LIVE SENSOR INTELLIGENCE"; if (!auth) { var lk = el("span", "eb-lock"); lk.appendChild(svg(IC.lock, 11)); lk.appendChild(document.createTextNode("SIGN-IN REQUIRED")); e2.appendChild(lk); } w.appendChild(e2);
   var s = el("div", "sensors");
   SENSOR.forEach(function (x, i) {
     var b = el("button", "sens"); b.type = "button"; b.style.animationDelay = (240 + i * 60) + "ms";
@@ -169,10 +281,27 @@ function riskOf(text) { var t = text || "", m = /\b(high|moderate|low)[\s-]+(?:r
 function hostOf(u) { try { return new URL(u).hostname.replace(/^www\./, ""); } catch (e) { return ""; } }
 
 function userMsg(m) { var row = el("div", "msg user"); row.appendChild(el("div", "bubble", m.text)); return row; }
-function botMsg(m, idx, animate) {
+function authMsg(m, idx) {
   var row = el("div", "msg bot"), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
   var body = el("div", "bot-body"), meta = el("div", "bot-meta");
   meta.appendChild(el("b", null, "SISIWENYEWE")); meta.appendChild(el("span", null, timeStr(m.at)));
+  var tg = el("span", "tag restricted"); tg.appendChild(svg(IC.lock, 11)); tg.appendChild(document.createTextNode("RESTRICTED")); meta.appendChild(tg);
+  body.appendChild(meta);
+  if (auth) {
+    var card = el("div", "lock-card"), p = el("p", "lock-msg", "You are signed in as " + whoName(auth.user) + ".");
+    var go = el("button", "lock-btn", "Show the answer"); go.type = "button"; go.addEventListener("click", function () { retry(idx); });
+    card.appendChild(p); card.appendChild(go); body.appendChild(card);
+  } else {
+    body.appendChild(lockCard(m.text, function () { retry(idx); }));
+  }
+  row.appendChild(body); return row;
+}
+function botMsg(m, idx, animate) {
+  if (m.kind === "auth") return authMsg(m, idx);
+  var row = el("div", "msg bot" + (m.redacted ? " redacted" : "")), av = el("div", "av"); av.innerHTML = MARK; row.appendChild(av);
+  var body = el("div", "bot-body"), meta = el("div", "bot-meta");
+  meta.appendChild(el("b", null, "SISIWENYEWE")); meta.appendChild(el("span", null, timeStr(m.at)));
+  if (m.restricted) { var rt = el("span", "tag restricted"); rt.appendChild(svg(IC.lock, 11)); rt.appendChild(document.createTextNode(m.redacted ? "RESTRICTED · HIDDEN" : "RESTRICTED")); meta.appendChild(rt); }
   if (m.ms) meta.appendChild(el("span", null, (m.ms / 1000).toFixed(1) + "s"));
   var isLive = (m.sources || []).some(function (s) { return /live_sensor/.test(s); });
   if (isLive) { var lt = el("span", "tag live"); lt.appendChild(svg(IC.sensor, 12)); lt.appendChild(document.createTextNode("LIVE SENSOR DATA")); meta.appendChild(lt);
@@ -193,6 +322,7 @@ function botMsg(m, idx, animate) {
   }
   var acts = el("div", "acts");
   function act(icon, label, fn) { var b = el("button", "act"); b.type = "button"; b.appendChild(svg(icon, 14)); b.appendChild(document.createTextNode(label)); b.addEventListener("click", function () { fn(b); }); acts.appendChild(b); return b; }
+  if (m.redacted) { if (!auth) act(IC.lock, "Sign in", openSignIn); if (idx != null) act(IC.retry, "Ask again", function () { retry(idx); }); extras.appendChild(acts); body.appendChild(extras); row.appendChild(body); ans.innerHTML = renderMd(m.text); return row; }
   act(IC.copy, "Copy", function (b) { copyText(m.text, b); });
   if ("speechSynthesis" in window) act(IC.speak, "Read aloud", function (b) { readAloud(m.text, b); });
   if (idx != null) act(IC.retry, "Retry", function () { retry(idx); });
@@ -261,11 +391,16 @@ function send(retryText) {
   setBusy(true);
   controller = window.AbortController ? new AbortController() : null;
   var t0 = Date.now(), chatRef = c;
-  var history = c.messages.slice(-6).map(function (m) { return { role: m.role, text: m.text }; });
-  fetch(API + "/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: text, history: history }), signal: controller ? controller.signal : undefined })
+  var history = c.messages.filter(function (m) { return m.kind !== "auth" && !m.redacted; }).slice(-6).map(function (m) { return { role: m.role, text: m.text }; });
+  fetch(API + "/chat", { method: "POST", headers: headers(), body: JSON.stringify({ question: text, history: history }), signal: controller ? controller.signal : undefined })
     .then(function (r) { return r.json(); })
     .then(function (data) {
-      var m = { role: "bot", text: (data && data.answer) || FALLBACK, sources: (data && data.sources) || [], resources: (data && data.resources) || [], at: new Date().toISOString(), ms: Date.now() - t0 };
+      if (data && data.auth_required) {
+        if (auth) { auth = null; storeAuth(); hideRestricted(); renderAccess(); }
+        finish(chatRef, th, { role: "bot", kind: "auth", text: data.answer, at: new Date().toISOString() });
+        return;
+      }
+      var m = { role: "bot", text: (data && data.answer) || FALLBACK, sources: (data && data.sources) || [], resources: (data && data.resources) || [], restricted: !!(data && data.restricted), at: new Date().toISOString(), ms: Date.now() - t0 };
       finish(chatRef, th, m);
     })
     .catch(function (err) {
@@ -290,7 +425,7 @@ form.addEventListener("submit", function (e) { e.preventDefault(); if (busy) { i
 q.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!busy) send(); } });
 function autosize() { q.style.height = "auto"; q.style.height = Math.min(180, q.scrollHeight) + "px"; updateSend(); }
 q.addEventListener("input", autosize);
-document.addEventListener("keydown", function (e) { if (e.key === "/" && document.activeElement !== q && document.activeElement !== searchEl) { e.preventDefault(); q.focus(); } if (e.key === "Escape") closeSide(); });
+document.addEventListener("keydown", function (e) { if (e.key === "/" && document.activeElement !== q && document.activeElement !== searchEl) { e.preventDefault(); q.focus(); } if (e.key === "Escape") { closeSide(); closeSignIn(); } });
 
 /* ---------- actions ---------- */
 function copyText(t, b) {
@@ -309,13 +444,17 @@ function readAloud(t, b) {
 $("#exportBtn").addEventListener("click", function () {
   var c = current(); if (!c || !c.messages.length) { toast("Ask a question first, then export the conversation."); return; }
   var p = $("#print"); p.innerHTML = "";
+  var hasR = c.messages.some(function (m) { return m.restricted && !m.redacted; });
+  if (hasR) p.appendChild(el("div", "pr", "RESTRICTED · AUTHORISED PERSONNEL ONLY · EXPORTED BY " + (auth ? auth.user.service_no + " " + whoName(auth.user) : "").toUpperCase()));
   p.appendChild(el("h1", null, "Sisiwenyewe CBRN Intelligence"));
   p.appendChild(el("div", "pm", "CONVERSATION RECORD · " + (c.title || "").toUpperCase() + " · " + new Date().toLocaleString()));
   c.messages.forEach(function (m) {
+    if (m.kind === "auth") return;
     if (m.role === "user") p.appendChild(el("div", "pq", "Q: " + m.text));
     else { p.appendChild(el("div", "pa", m.text)); var s = (m.sources || []).map(function (x) { return prettySource(x).t; }).filter(Boolean); if (s.length) p.appendChild(el("div", "ps", "Sources: " + s.join("; "))); }
   });
   p.appendChild(el("div", "ps", "Advisory intelligence. Verify with the responsible authority before operational decisions."));
+  if (hasR) p.appendChild(el("div", "pr", "RESTRICTED · DO NOT DISTRIBUTE"));
   window.print();
 });
 
@@ -358,6 +497,8 @@ micBtn.addEventListener("click", function () {
 });
 
 /* ---------- boot ---------- */
+$("#authModal").addEventListener("click", function (e) { if (e.target.id === "authModal") closeSignIn(); });
+renderAccess();
 if (window.matchMedia && matchMedia('(max-width: 860px)').matches) q.placeholder = 'Ask Sisiwenyewe anything…';
 if (!chats.length || !chats[0].messages.length) newChat(false);
 else { currentId = chats[0].id; renderHistory(); renderThread(); }

@@ -1,0 +1,41 @@
+{
+  "_comment": "Knowledge-base files matching public_files are open to everyone. EVERY other file is RESTRICTED (sign-in required), including any new document you index later. Patterns are case-insensitive; * matches anything. Changes apply without a restart.",
+
+  "restrict_live_sensor_data": true,
+  "restrict_internal_profiles": true,
+
+  "public_files": [
+    "sf__19a_308133-a_bmbl6_00-book-web-final-3.pdf",
+    "blue_book_2017.pdf",
+    "emergency response g2020-web.pdf",
+    "ian greaves*responding to terrorism*",
+    "training standards for osha.pdf",
+    "cbrn respiratory protection handbook*",
+    "govpub-d5-purl-gpo34648.pdf",
+    "dafi10-2503.pdf",
+    "hazmatwhatyouneedtoknowaboutcbrn.pdf",
+    "jpeo-cbrnd_capabilities catalog*",
+    "mco 3400_3h.pdf",
+    "nrtcbrn*qrg*",
+    "nrtwmd*qrg*",
+    "nrt_wmd_*qrg*",
+    "120502_*_qrg_final.pdf",
+    "hantavirus_qrg*",
+    "phosgenecgqrg*",
+    "arsinesaqrg*",
+    "bioterrorism.pdf",
+    "ppe-cbrn-guidance*.pdf",
+    "2008-132.pdf",
+    "nerve agents.pdf",
+    "blister agents.pdf",
+    "biological agents.pdf",
+    "radiological dispersal devices.pdf",
+    "a step up for cbrn prtection.pdf",
+    "usaphc_ar-40-5e_*",
+    "table 3-2, physical and chemical properties of thallium*",
+    "firestop motorcycle_*",
+    "fd1021_manuale firestop motorcycle_*",
+    "fire stop motorcycle_quick manual*",
+    "vaporvacuum-m_2020_en*"
+  ]
+}

@@ -13,6 +13,8 @@ from psycopg2.extras import RealDictCursor
 from dotenv import load_dotenv
 load_dotenv()
 
+import access_control as ac
+
 
 RESOURCE_MAP = {
     "anthrax": [
@@ -514,7 +516,8 @@ def build_sensor_analysis(rows):
 
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, expose_headers=["Content-Type"], allow_headers=["Content-Type", "Authorization"])
+app.register_blueprint(ac.bp)
 
 BASE_DIR = Path(__file__).parent
 INDEX_DIR = BASE_DIR / "rag_store"
@@ -1123,7 +1126,11 @@ def chat():
     question_lower = question.lower()
     history = data.get("history", [])
 
-    print(f"Question received: {question}")
+    # Who is asking? (None = public user)
+    user, auth_problem = ac.current_user()
+    sn = user["service_no"] if user else None
+
+    print(f"Question received ({sn or 'public'}): {question}")
 
     if not question:
         return jsonify({
@@ -1172,6 +1179,9 @@ def chat():
         # Live sensor analysis queries
     if is_live_sensor_analysis_query(effective_question):
         print("Live sensor analysis query detected — using sensor database.")
+        if not user and ac.sensor_is_restricted():
+            return ac.auth_required_response(auth_problem)
+        ac.audit("restricted_query", sn, kind="live_sensor_analysis", q=question[:300])
 
         try:
             rows = fetch_recent_sensor_data(limit=20)
@@ -1192,6 +1202,7 @@ def chat():
             return jsonify({
                 "answer": answer,
                 "sources": ["live_sensor_analysis"],
+                "restricted": True,
                 "resources": []
             })
 
@@ -1206,6 +1217,9 @@ def chat():
     # Live sensor queries
     if is_live_sensor_query(effective_question):
         print("Live sensor query detected — using sensor database.")
+        if not user and ac.sensor_is_restricted():
+            return ac.auth_required_response(auth_problem)
+        ac.audit("restricted_query", sn, kind="live_sensor_data", q=question[:300])
 
         try:
             rows = fetch_recent_sensor_data(limit=20)
@@ -1226,6 +1240,7 @@ def chat():
             return jsonify({
     "answer": answer,
     "sources": ["live_sensor_data"],
+    "restricted": True,
     "resources": []
 })
 
@@ -1252,6 +1267,9 @@ def chat():
     # Internal profile questions
     if is_profile_query(effective_question):
         print("Internal profile query detected.")
+        if not user and ac.profile_is_restricted():
+            return ac.auth_required_response(auth_problem)
+        ac.audit("restricted_query", sn, kind="internal_profile", q=question[:300])
 
         profile_results = search_profile_documents(
             effective_question,
@@ -1269,6 +1287,7 @@ def chat():
                 return jsonify({
                     "answer": answer,
                     "sources": ["internal_profile"],
+                    "restricted": True,
                     "resources": []
                 })
 
@@ -1299,10 +1318,29 @@ def chat():
     # Search the internal knowledge base first
     print("Searching internal knowledge base.")
 
-    results = search_documents(
+    # Search wider than needed, then apply the access policy
+    all_results = search_documents(
         effective_question,
-        top_k=TOP_K
+        top_k=TOP_K * 4
     )
+    public_results = [r for r in all_results if ac.is_public_file(r["file"])]
+    restricted_results = [r for r in all_results if not ac.is_public_file(r["file"])]
+
+    if user:
+        results = all_results[:TOP_K]
+    else:
+        best_restricted = restricted_results[0]["score"] if restricted_results else 0.0
+        best_public = public_results[0]["score"] if public_results else 0.0
+        # The best answer lives in restricted material -> ask the user to sign in
+        if best_restricted >= 0.35 and best_restricted >= best_public:
+            print(f"Restricted material is the best match ({best_restricted:.3f}) — sign-in required.")
+            return ac.auth_required_response(auth_problem)
+        results = public_results[:TOP_K]
+
+    used_restricted = any(not ac.is_public_file(r["file"]) for r in results)
+    if used_restricted:
+        ac.audit("restricted_query", sn, kind="knowledge_base", q=question[:300],
+                 files=sorted({r["file"] for r in results if not ac.is_public_file(r["file"])}))
 
     top_score = results[0]["score"] if results else 0.0
     print(f"Top retrieval score: {top_score:.4f}")
@@ -1325,6 +1363,7 @@ def chat():
                         result["file"] for result in results
                     )
                 ),
+                "restricted": used_restricted,
                 "resources": get_resources(question)
             })
 
